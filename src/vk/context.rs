@@ -1,8 +1,8 @@
 use std::ffi::CString;
 
-use ash::vk;
+use ash::{ext, vk};
 use thiserror::Error;
-use winit::raw_window_handle::WindowHandle;
+use winit::{raw_window_handle::HasDisplayHandle, window::Window};
 
 use super::debug::{DUMCreationError, DUMHandle, create_dum};
 
@@ -32,7 +32,7 @@ pub enum ContextCreateError {
 
 impl Context {
     pub fn create(
-        window_handle: WindowHandle,
+        window: &Window,
         create_info: &ContextCreateInfo,
     ) -> Result<Self, ContextCreateError> {
         // SAFETY: This is basically foreign code execution, and there is not way to properly ensure safety
@@ -57,7 +57,24 @@ impl Context {
             .engine_version(engine_version)
             .api_version(vk::make_api_version(0, 1, 2, 197));
 
-        let instance_create_info = vk::InstanceCreateInfo::default().application_info(&app_info);
+        let mut enabled_extensions = ash_window::enumerate_required_extensions(
+            window
+                .display_handle()
+                .expect("window should have a valid diaplay handle")
+                .as_raw(),
+        )
+        .expect("required extensions should be queried correctly from the display handle")
+        .to_vec();
+        let mut enabled_layers = vec![];
+        if cfg!(debug_assertions) {
+            enabled_extensions.push(ext::debug_utils::NAME.as_ptr());
+            enabled_layers.push(c"VK_LAYER_KHRONOS_validation".as_ptr());
+        }
+
+        let instance_create_info = vk::InstanceCreateInfo::default()
+            .application_info(&app_info)
+            .enabled_extension_names(&enabled_extensions)
+            .enabled_layer_names(&enabled_layers);
 
         // SAFETY: This is only safe is we keep the entry alive for longer than the instance, which
         // we do by storing it as well.
@@ -74,5 +91,15 @@ impl Context {
             instance,
             entry,
         })
+    }
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        log::info!("dropping vulkan context");
+
+        // SAFETY: This is only valid if the associated entry is still alive, which it is, as we
+        // haven't dropped any members yet.
+        unsafe { self.instance.destroy_instance(None) };
     }
 }

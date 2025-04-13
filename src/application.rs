@@ -83,11 +83,8 @@ impl winit::application::ApplicationHandler for Application {
 
         match event_loop.create_window(self.window_create_info.clone().into()) {
             Ok(window) => {
-                let rwh = window
-                    .window_handle()
-                    .expect("window should have a valid handle");
                 self.vulkan_context = Some(
-                    Context::create(rwh, &self.vulkan_context_create_info)
+                    Context::create(&window, &self.vulkan_context_create_info)
                         .expect("context should be creatable"),
                 );
 
