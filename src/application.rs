@@ -1,23 +1,19 @@
-use std::ffi::CString;
-
 use thiserror::Error;
 
-use ash::vk;
+use winit::raw_window_handle::HasWindowHandle;
 
-use crate::debug::ScopeTimer;
+use crate::{
+    debug::ScopeTimer,
+    vk::context::{Context, ContextCreateError, ContextCreateInfo},
+};
 
 #[derive(Debug, Clone)]
-pub struct WindowCreationData {
-    // For the Vulkan API
-    pub application_name: CString,
-    pub application_version: u32,
-
-    // For the window
+pub struct WindowCreationInfo {
     pub title: String,
 }
 
-impl From<WindowCreationData> for winit::window::WindowAttributes {
-    fn from(value: WindowCreationData) -> Self {
+impl From<WindowCreationInfo> for winit::window::WindowAttributes {
+    fn from(value: WindowCreationInfo) -> Self {
         Self::default().with_title(value.title)
     }
 }
@@ -27,22 +23,19 @@ pub trait ApplicationState {
 }
 
 pub struct Application {
-    window_creation_data: WindowCreationData,
+    window_create_info: WindowCreationInfo,
     window: Option<winit::window::Window>,
 
-    state: Box<dyn ApplicationState>,
+    vulkan_context_create_info: ContextCreateInfo,
+    vulkan_context: Option<crate::vk::context::Context>,
 
-    entry: ash::Entry,
-    instance: ash::Instance,
+    state: Box<dyn ApplicationState>,
 }
 
 #[derive(Debug, Error)]
 pub enum ApplicationBuildError {
-    #[error("vulkan library loading failed")]
-    VulkanLoadFail(#[from] ash::LoadingError),
-
-    #[error("instance creation failed")]
-    InstanceCreationFail(vk::Result),
+    #[error("vulkan context creation failed")]
+    VkContextCreationFail(#[from] ContextCreateError),
 }
 
 #[derive(Debug, Error)]
@@ -56,50 +49,18 @@ pub enum ApplicationStartError {
 
 impl Application {
     pub fn build(
-        create_data: WindowCreationData,
+        window_create_info: WindowCreationInfo,
+        vulkan_context_create_info: ContextCreateInfo,
         start_state: Box<dyn ApplicationState>,
     ) -> Result<Self, ApplicationBuildError> {
-        let _timer = ScopeTimer::new(log::Level::Info, "application build step".to_owned());
-
-        // SAFETY: This is basically foreign code execution, and there is not way to properly ensure safety
-        // here. It is unfortunately an uncontrollable risk we must accept.
-        let entry = unsafe { ash::Entry::load()? };
-
-        let mut engine_version_numbers = option_env!("CARGO_PKG_VERSION")
-            .unwrap_or("1.0.0")
-            .split('.')
-            .flat_map(|value| value.parse::<u32>())
-            .chain(std::iter::repeat(0));
-        let engine_version = vk::make_api_version(
-            engine_version_numbers.next().unwrap(),
-            engine_version_numbers.next().unwrap(),
-            engine_version_numbers.next().unwrap(),
-            engine_version_numbers.next().unwrap(),
-        );
-        let app_info = vk::ApplicationInfo::default()
-            .application_name(&create_data.application_name)
-            .application_version(create_data.application_version)
-            .engine_name(c"miel")
-            .engine_version(engine_version)
-            .api_version(vk::make_api_version(1, 2, 197, 0));
-
-        let instance_create_info = vk::InstanceCreateInfo::default().application_info(&app_info);
-
-        // SAFETY: This is only safe is we keep the entry alive for longer than the instance, which
-        // we do by storing it as well.
-        let instance = unsafe {
-            entry
-                .create_instance(&instance_create_info, None)
-                .map_err(ApplicationBuildError::InstanceCreationFail)?
-        };
-
         Ok(Self {
-            window_creation_data: create_data,
+            window_create_info,
             window: None,
-            state: start_state,
 
-            entry,
-            instance,
+            vulkan_context_create_info,
+            vulkan_context: None,
+
+            state: start_state,
         })
     }
 
@@ -118,8 +79,20 @@ impl Application {
 
 impl winit::application::ApplicationHandler for Application {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        match event_loop.create_window(self.window_creation_data.clone().into()) {
-            Ok(handle) => self.window = Some(handle),
+        let _timer = ScopeTimer::new(log::Level::Info, "application resmued step".to_owned());
+
+        match event_loop.create_window(self.window_create_info.clone().into()) {
+            Ok(window) => {
+                let rwh = window
+                    .window_handle()
+                    .expect("window should have a valid handle");
+                self.vulkan_context = Some(
+                    Context::create(rwh, &self.vulkan_context_create_info)
+                        .expect("context should be creatable"),
+                );
+
+                self.window = Some(window);
+            }
             Err(e) => {
                 log::error!("failed to create window after resume event: {e}");
                 todo!()
