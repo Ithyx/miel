@@ -1,7 +1,5 @@
 use thiserror::Error;
 
-use winit::raw_window_handle::HasWindowHandle;
-
 use crate::{
     debug::ScopeTimer,
     vk::context::{Context, ContextCreateError, ContextCreateInfo},

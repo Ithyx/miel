@@ -41,36 +41,47 @@ pub enum DUMCreationError {
     VulkanError(vk::Result),
 }
 
-pub(crate) type DUMHandle = Option<(vk::DebugUtilsMessengerEXT, ext::debug_utils::Instance)>;
+pub(crate) struct DUMessenger {
+    handle: vk::DebugUtilsMessengerEXT,
+    loader: ext::debug_utils::Instance,
+}
 
-pub(crate) fn create_dum(
-    entry: &ash::Entry,
-    instance: &ash::Instance,
-) -> Result<DUMHandle, DUMCreationError> {
-    match cfg!(debug_assertions) {
-        true => {
-            let debug_utils_instance = ext::debug_utils::Instance::new(entry, instance);
+impl DUMessenger {
+    pub(crate) fn create(
+        entry: &ash::Entry,
+        instance: &ash::Instance,
+    ) -> Result<Option<Self>, DUMCreationError> {
+        match cfg!(debug_assertions) {
+            true => {
+                let loader = ext::debug_utils::Instance::new(entry, instance);
 
-            let create_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
-                .message_severity(
-                    vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
-                        | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-                        | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
-                        | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE,
-                )
-                .message_type(
-                    vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
-                        | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
-                        | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
-                        | vk::DebugUtilsMessageTypeFlagsEXT::DEVICE_ADDRESS_BINDING,
-                )
-                .pfn_user_callback(Some(vulkan_debug_callback));
-            let messenger =
-                unsafe { debug_utils_instance.create_debug_utils_messenger(&create_info, None) }
+                let create_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
+                    .message_severity(
+                        vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
+                            | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+                            | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
+                            | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE,
+                    )
+                    .message_type(
+                        vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                            | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                            | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
+                            | vk::DebugUtilsMessageTypeFlagsEXT::DEVICE_ADDRESS_BINDING,
+                    )
+                    .pfn_user_callback(Some(vulkan_debug_callback));
+                let handle = unsafe { loader.create_debug_utils_messenger(&create_info, None) }
                     .map_err(DUMCreationError::VulkanError)?;
 
-            Ok(Some((messenger, debug_utils_instance)))
+                Ok(Some(Self { handle, loader }))
+            }
+            false => Ok(None),
         }
-        false => Ok(None),
+    }
+}
+
+impl Drop for DUMessenger {
+    fn drop(&mut self) {
+        // SAFETY: This is safe as long as the entry used to create the loader is still alive.
+        unsafe { self.loader.destroy_debug_utils_messenger(self.handle, None) };
     }
 }
