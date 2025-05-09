@@ -38,12 +38,12 @@ unsafe extern "system" fn vulkan_debug_callback(
 #[derive(Debug, Error)]
 pub enum DUMCreationError {
     #[error("vulkan call to create the messenger failed")]
-    VulkanError(vk::Result),
+    VulkanCreation(vk::Result),
 }
 
 pub(crate) struct DUMessenger {
-    handle: vk::DebugUtilsMessengerEXT,
-    loader: ext::debug_utils::Instance,
+    pub handle: vk::DebugUtilsMessengerEXT,
+    pub loader: ext::debug_utils::Instance,
 }
 
 impl DUMessenger {
@@ -67,7 +67,7 @@ impl DUMessenger {
                     )
                     .pfn_user_callback(Some(vulkan_debug_callback));
                 let handle = unsafe { loader.create_debug_utils_messenger(&create_info, None) }
-                    .map_err(DUMCreationError::VulkanError)?;
+                    .map_err(DUMCreationError::VulkanCreation)?;
 
                 Ok(Some(Self { handle, loader }))
             }

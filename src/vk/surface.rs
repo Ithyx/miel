@@ -11,7 +11,7 @@ pub(crate) struct Surface {
 #[derive(Debug, Error)]
 pub enum SurfaceCreateError {
     #[error("vulkan call to create the surface failed")]
-    VulkanError(vk::Result),
+    VulkanCreation(vk::Result),
 }
 
 impl Surface {
@@ -26,7 +26,7 @@ impl Surface {
         // them in the correct order.
         let handle = unsafe {
             ash_window::create_surface(entry, instance, display_handle, window_handle, None)
-                .map_err(SurfaceCreateError::VulkanError)?
+                .map_err(SurfaceCreateError::VulkanCreation)?
         };
         let loader = khr::surface::Instance::new(entry, instance);
 

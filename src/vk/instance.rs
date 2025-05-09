@@ -19,9 +19,9 @@ impl Deref for Instance {
 #[derive(Debug, Error)]
 pub enum InstanceCreateError {
     #[error("query for necessary extensions from ash_window failed")]
-    ExtensionQueryError(vk::Result),
+    ExtensionQuery(vk::Result),
     #[error("vulkan call to create instance failed")]
-    VulkanCreationError(vk::Result),
+    VulkanCreation(vk::Result),
 }
 
 impl Instance {
@@ -50,7 +50,7 @@ impl Instance {
             .engine_version(engine_version)
             .api_version(vk_version);
         let mut enabled_extensions = ash_window::enumerate_required_extensions(display_handle)
-            .map_err(InstanceCreateError::ExtensionQueryError)?
+            .map_err(InstanceCreateError::ExtensionQuery)?
             .to_vec();
         let mut enabled_layers = vec![];
         if cfg!(debug_assertions) {
@@ -68,7 +68,7 @@ impl Instance {
         let handle = unsafe {
             entry
                 .create_instance(&instance_create_info, None)
-                .map_err(InstanceCreateError::VulkanCreationError)?
+                .map_err(InstanceCreateError::VulkanCreation)?
         };
 
         Ok(Self { handle })

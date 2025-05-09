@@ -33,16 +33,16 @@ pub struct Application {
 #[derive(Debug, Error)]
 pub enum ApplicationBuildError {
     #[error("vulkan context creation failed")]
-    VkContextCreationFail(#[from] ContextCreateError),
+    VkContextCreation(#[from] ContextCreateError),
 }
 
 #[derive(Debug, Error)]
 pub enum ApplicationStartError {
     #[error("event loop creation failed")]
-    EventLoopCreationFail(winit::error::EventLoopError),
+    EventLoopCreation(winit::error::EventLoopError),
 
     #[error("application run failed")]
-    ApplicationRunFail(winit::error::EventLoopError),
+    ApplicationRun(winit::error::EventLoopError),
 }
 
 impl Application {
@@ -64,12 +64,12 @@ impl Application {
 
     pub fn run(mut self) -> Result<(), ApplicationStartError> {
         let event_loop = winit::event_loop::EventLoop::new()
-            .map_err(ApplicationStartError::EventLoopCreationFail)?;
+            .map_err(ApplicationStartError::EventLoopCreation)?;
 
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
         event_loop
             .run_app(&mut self)
-            .map_err(ApplicationStartError::ApplicationRunFail)?;
+            .map_err(ApplicationStartError::ApplicationRun)?;
 
         Ok(())
     }

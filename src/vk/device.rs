@@ -37,8 +37,8 @@ pub(crate) struct PhysicalDevice {
 pub enum PhysicalDeviceSelectError {
     #[error("device enumeration failed")]
     DeviceEnumeration(vk::Result),
-    #[error("device name retrieving failed")]
-    DeviceNameRetrieving(#[from] std::ffi::FromBytesUntilNulError),
+    #[error("device name fetching failed")]
+    DeviceNameFetching(#[from] std::ffi::FromBytesUntilNulError),
     #[error("device name convertion failed")]
     DeviceNameConversion(#[from] std::str::Utf8Error),
     #[error("no valid device detected")]

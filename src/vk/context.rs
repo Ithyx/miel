@@ -29,17 +29,20 @@ pub(crate) struct Context {
 
 #[derive(Debug, Error)]
 pub enum ContextCreateError {
+    #[error("unable to get necessary handles from window")]
+    InvalidWindow(#[from] winit::raw_window_handle::HandleError),
+
     #[error("vulkan library loading failed")]
-    VulkanLoadFail(#[from] ash::LoadingError),
+    VulkanLoad(#[from] ash::LoadingError),
 
     #[error("instance creation failed")]
-    InstanceCreationFail(#[from] InstanceCreateError),
+    InstanceCreation(#[from] InstanceCreateError),
 
     #[error("debug utils messenger creation failed")]
-    DUMCreationFail(#[from] DUMCreationError),
+    DUMCreation(#[from] DUMCreationError),
 
     #[error("surface creation failed")]
-    SurfaceCreationFail(#[from] SurfaceCreateError),
+    SurfaceCreation(#[from] SurfaceCreateError),
 
     #[error("physical device selection failed")]
     PhysicalDeviceSelection(#[from] PhysicalDeviceSelectError),
@@ -50,14 +53,8 @@ impl Context {
         window: &Window,
         create_info: &ContextCreateInfo,
     ) -> Result<Self, ContextCreateError> {
-        let window_handle = window
-            .window_handle()
-            .expect("window should have a valid window handle")
-            .as_raw();
-        let display_handle = window
-            .display_handle()
-            .expect("window should have a valid diaplay handle")
-            .as_raw();
+        let window_handle = window.window_handle()?.as_raw();
+        let display_handle = window.display_handle()?.as_raw();
 
         let vk_version = vk::make_api_version(0, 1, 3, 0);
 
