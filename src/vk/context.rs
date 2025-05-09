@@ -1,5 +1,6 @@
 use std::ffi::CString;
 
+use ash::vk;
 use thiserror::Error;
 use winit::{
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
@@ -8,6 +9,7 @@ use winit::{
 
 use super::{
     debug::{DUMCreationError, DUMessenger},
+    device::{PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
     surface::{Surface, SurfaceCreateError},
 };
@@ -18,8 +20,9 @@ pub struct ContextCreateInfo {
 }
 
 pub(crate) struct Context {
-    du_messenger: Option<DUMessenger>,
+    selected_physical_device: PhysicalDevice,
     surface: Surface,
+    du_messenger: Option<DUMessenger>,
     instance: Instance,
     entry: ash::Entry,
 }
@@ -37,6 +40,9 @@ pub enum ContextCreateError {
 
     #[error("surface creation failed")]
     SurfaceCreationFail(#[from] SurfaceCreateError),
+
+    #[error("physical device selection failed")]
+    PhysicalDeviceSelection(#[from] PhysicalDeviceSelectError),
 }
 
 impl Context {
@@ -53,6 +59,8 @@ impl Context {
             .expect("window should have a valid diaplay handle")
             .as_raw();
 
+        let vk_version = vk::make_api_version(0, 1, 3, 0);
+
         // SAFETY: This is basically foreign code execution, and there is not way to properly ensure safety
         // here. It is unfortunately an uncontrollable risk we must accept.
         let entry = unsafe { ash::Entry::load()? };
@@ -60,14 +68,17 @@ impl Context {
             &entry,
             &create_info.application_name,
             create_info.application_version,
+            vk_version,
             display_handle,
         )?;
         let du_messenger = DUMessenger::create(&entry, &instance.handle)?;
         let surface = Surface::create(&entry, &instance.handle, display_handle, window_handle)?;
+        let selected_physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
 
         Ok(Self {
-            du_messenger,
+            selected_physical_device,
             surface,
+            du_messenger,
             instance,
             entry,
         })

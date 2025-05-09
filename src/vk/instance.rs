@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::{ffi::CString, ops::Deref};
 
 use ash::{ext, vk};
 use thiserror::Error;
@@ -8,8 +8,18 @@ pub(crate) struct Instance {
     pub handle: ash::Instance,
 }
 
+impl Deref for Instance {
+    type Target = ash::Instance;
+
+    fn deref(&self) -> &Self::Target {
+        &self.handle
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum InstanceCreateError {
+    #[error("query for necessary extensions from ash_window failed")]
+    ExtensionQueryError(vk::Result),
     #[error("vulkan call to create instance failed")]
     VulkanCreationError(vk::Result),
 }
@@ -19,6 +29,7 @@ impl Instance {
         entry: &ash::Entry,
         application_name: &CString,
         application_version: u32,
+        vk_version: u32,
         display_handle: RawDisplayHandle,
     ) -> Result<Self, InstanceCreateError> {
         let mut engine_version_numbers = option_env!("CARGO_PKG_VERSION")
@@ -37,9 +48,9 @@ impl Instance {
             .application_version(application_version)
             .engine_name(c"miel")
             .engine_version(engine_version)
-            .api_version(vk::make_api_version(0, 1, 2, 197));
+            .api_version(vk_version);
         let mut enabled_extensions = ash_window::enumerate_required_extensions(display_handle)
-            .expect("required extensions should be queried correctly from the display handle")
+            .map_err(InstanceCreateError::ExtensionQueryError)?
             .to_vec();
         let mut enabled_layers = vec![];
         if cfg!(debug_assertions) {

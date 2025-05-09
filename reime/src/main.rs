@@ -33,7 +33,7 @@ fn get_version() -> u32 {
 struct StartupState {}
 impl application::ApplicationState for StartupState {
     fn update(&self) {
-        log::info!("UPDATE")
+        // log::info!("UPDATE")
     }
 }
 
