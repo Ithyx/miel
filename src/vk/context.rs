@@ -7,6 +7,8 @@ use winit::{
     window::Window,
 };
 
+use crate::utils::ThreadSafeRef;
+
 use super::{
     allocator::{Allocator, AllocatorCreateError},
     debug::{DUMCreationError, DUMessenger},
@@ -21,7 +23,7 @@ pub struct ContextCreateInfo {
 }
 
 pub(crate) struct Context {
-    allocator: Allocator,
+    allocator: ThreadSafeRef<Allocator>,
 
     device: Device,
     physical_device: PhysicalDevice,
@@ -85,13 +87,13 @@ impl Context {
         let mut surface = Surface::create(&entry, &instance, display_handle, window_handle)?;
         let physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
         let device = Device::create(&instance, &physical_device)?;
-
         surface.select_format_from_device(&physical_device)?;
 
         let allocator = Allocator::create(&instance, &physical_device, &device)?;
 
         Ok(Self {
-            allocator,
+            allocator: ThreadSafeRef::new(allocator),
+
             device,
             physical_device,
             surface,
