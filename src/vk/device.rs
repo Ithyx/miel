@@ -224,3 +224,51 @@ impl PhysicalDevice {
         format!("{} [{}]: {}", device_name, device_vendor, device_type)
     }
 }
+
+pub(crate) struct Device {
+    pub handle: ash::Device,
+}
+
+impl Deref for Device {
+    type Target = ash::Device;
+
+    fn deref(&self) -> &Self::Target {
+        &self.handle
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum DeviceCreateError {
+    #[error("vulkan call to create the device failed")]
+    VulkanCreation(vk::Result),
+}
+
+impl Device {
+    pub fn create(
+        instance: &Instance,
+        physical_device: &PhysicalDevice,
+    ) -> Result<Self, DeviceCreateError> {
+        // No special device features needed for now
+        let features = vk::PhysicalDeviceFeatures::default();
+        let extensions = [ash::khr::dynamic_rendering::NAME.as_ptr()];
+        let queue_priorities = [1.0];
+        let queue_infos = [vk::DeviceQueueCreateInfo::default()
+            .queue_family_index(physical_device.work_queue_index)
+            .queue_priorities(&queue_priorities)];
+        let create_info = vk::DeviceCreateInfo::default()
+            .enabled_features(&features)
+            .enabled_extension_names(&extensions)
+            .queue_create_infos(&queue_infos);
+
+        let handle = unsafe { instance.create_device(physical_device.handle, &create_info, None) }
+            .map_err(DeviceCreateError::VulkanCreation)?;
+
+        Ok(Self { handle })
+    }
+}
+
+impl Drop for Device {
+    fn drop(&mut self) {
+        unsafe { self.destroy_device(None) };
+    }
+}

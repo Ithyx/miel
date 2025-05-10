@@ -9,7 +9,7 @@ use winit::{
 
 use super::{
     debug::{DUMCreationError, DUMessenger},
-    device::{PhysicalDevice, PhysicalDeviceSelectError},
+    device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
     surface::{Surface, SurfaceCreateError},
 };
@@ -20,6 +20,7 @@ pub struct ContextCreateInfo {
 }
 
 pub(crate) struct Context {
+    device: Device,
     selected_physical_device: PhysicalDevice,
     surface: Surface,
     du_messenger: Option<DUMessenger>,
@@ -46,6 +47,9 @@ pub enum ContextCreateError {
 
     #[error("physical device selection failed")]
     PhysicalDeviceSelection(#[from] PhysicalDeviceSelectError),
+
+    #[error("physical device selection failed")]
+    DeviceCreation(#[from] DeviceCreateError),
 }
 
 impl Context {
@@ -71,8 +75,10 @@ impl Context {
         let du_messenger = DUMessenger::create(&entry, &instance.handle)?;
         let surface = Surface::create(&entry, &instance.handle, display_handle, window_handle)?;
         let selected_physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
+        let device = Device::create(&instance, &selected_physical_device)?;
 
         Ok(Self {
+            device,
             selected_physical_device,
             surface,
             du_messenger,
