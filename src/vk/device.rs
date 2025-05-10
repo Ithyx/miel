@@ -77,7 +77,7 @@ impl PhysicalDevice {
         // Filter what we can even without queue families
         let compatible_devices: Vec<_> = physical_devices
             .into_iter()
-            .filter(|(device_handle, device_info)| {
+            .filter(|&(device_handle, device_info)| {
                 // VK API version check
                 if device_info.api_version <= minimum_vk_version {
                     return false;
@@ -90,7 +90,7 @@ impl PhysicalDevice {
                 ]
                 .into();
                 let supported_extensions = unsafe {
-                    instance.enumerate_device_extension_properties(*device_handle)
+                    instance.enumerate_device_extension_properties(device_handle)
                 }
                 .inspect_err(|err| {
                     log::warn!(
@@ -111,8 +111,8 @@ impl PhysicalDevice {
                     }
                 }
 
-                for extension_check in required_extensions.values() {
-                    if !(*extension_check) {
+                for &extension_check in required_extensions.values() {
+                    if !(extension_check) {
                         return false;
                     }
                 }

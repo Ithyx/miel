@@ -109,7 +109,7 @@ impl winit::application::ApplicationHandler for Application {
                 let window = self.window.as_ref().unwrap();
                 window.request_redraw();
 
-                self.state.update(&event_loop);
+                self.state.update(event_loop);
                 // window.pre_present_notify();
             }
 
