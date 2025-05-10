@@ -1,3 +1,4 @@
+pub(crate) mod allocator;
 pub(crate) mod debug;
 pub(crate) mod device;
 pub(crate) mod instance;

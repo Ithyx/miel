@@ -2,7 +2,7 @@ use ash::{khr, vk};
 use thiserror::Error;
 use winit::raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
-use super::device::PhysicalDevice;
+use super::{device::PhysicalDevice, instance::Instance};
 
 pub(crate) struct Surface {
     pub handle: vk::SurfaceKHR,
@@ -28,7 +28,7 @@ pub enum FormatSelectError {
 impl Surface {
     pub fn create(
         entry: &ash::Entry,
-        instance: &ash::Instance,
+        instance: &Instance,
         display_handle: RawDisplayHandle,
         window_handle: RawWindowHandle,
     ) -> Result<Self, SurfaceCreateError> {

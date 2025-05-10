@@ -8,6 +8,7 @@ use winit::{
 };
 
 use super::{
+    allocator::{Allocator, AllocatorCreateError},
     debug::{DUMCreationError, DUMessenger},
     device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
@@ -20,6 +21,8 @@ pub struct ContextCreateInfo {
 }
 
 pub(crate) struct Context {
+    allocator: Allocator,
+
     device: Device,
     physical_device: PhysicalDevice,
     surface: Surface,
@@ -53,6 +56,9 @@ pub enum ContextCreateError {
 
     #[error("surface format selection failed")]
     SurfaceFormatSelection(#[from] FormatSelectError),
+
+    #[error("GPU allocator creation failed")]
+    AllocatorCreation(#[from] AllocatorCreateError),
 }
 
 impl Context {
@@ -75,14 +81,17 @@ impl Context {
             vk_version,
             display_handle,
         )?;
-        let du_messenger = DUMessenger::create(&entry, &instance.handle)?;
-        let mut surface = Surface::create(&entry, &instance.handle, display_handle, window_handle)?;
+        let du_messenger = DUMessenger::create(&entry, &instance)?;
+        let mut surface = Surface::create(&entry, &instance, display_handle, window_handle)?;
         let physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
         let device = Device::create(&instance, &physical_device)?;
 
         surface.select_format_from_device(&physical_device)?;
 
+        let allocator = Allocator::create(&instance, &physical_device, &device)?;
+
         Ok(Self {
+            allocator,
             device,
             physical_device,
             surface,

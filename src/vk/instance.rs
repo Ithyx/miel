@@ -5,14 +5,14 @@ use thiserror::Error;
 use winit::raw_window_handle::RawDisplayHandle;
 
 pub(crate) struct Instance {
-    pub handle: ash::Instance,
+    pub loader: ash::Instance,
 }
 
 impl Deref for Instance {
     type Target = ash::Instance;
 
     fn deref(&self) -> &Self::Target {
-        &self.handle
+        &self.loader
     }
 }
 
@@ -71,13 +71,13 @@ impl Instance {
                 .map_err(InstanceCreateError::VulkanCreation)?
         };
 
-        Ok(Self { handle })
+        Ok(Self { loader: handle })
     }
 }
 
 impl Drop for Instance {
     fn drop(&mut self) {
         // SAFETY: This is safe as long as the entry used to create the loader is still alive.
-        unsafe { self.handle.destroy_instance(None) };
+        unsafe { self.loader.destroy_instance(None) };
     }
 }

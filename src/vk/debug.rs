@@ -3,6 +3,8 @@ use std::ffi::CStr;
 use ash::{ext, vk};
 use thiserror::Error;
 
+use super::instance::Instance;
+
 unsafe extern "system" fn vulkan_debug_callback(
     message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
     message_type: vk::DebugUtilsMessageTypeFlagsEXT,
@@ -49,7 +51,7 @@ pub(crate) struct DUMessenger {
 impl DUMessenger {
     pub(crate) fn create(
         entry: &ash::Entry,
-        instance: &ash::Instance,
+        instance: &Instance,
     ) -> Result<Option<Self>, DUMCreationError> {
         match cfg!(debug_assertions) {
             true => {
