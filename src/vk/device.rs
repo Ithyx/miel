@@ -248,17 +248,22 @@ impl Device {
         instance: &Instance,
         physical_device: &PhysicalDevice,
     ) -> Result<Self, DeviceCreateError> {
-        // No special device features needed for now
         let features = vk::PhysicalDeviceFeatures::default();
+        let mut dynamic_rendering_feature =
+            vk::PhysicalDeviceDynamicRenderingFeatures::default().dynamic_rendering(true);
+
         let extensions = [ash::khr::dynamic_rendering::NAME.as_ptr()];
+
         let queue_priorities = [1.0];
         let queue_infos = [vk::DeviceQueueCreateInfo::default()
             .queue_family_index(physical_device.work_queue_index)
             .queue_priorities(&queue_priorities)];
+
         let create_info = vk::DeviceCreateInfo::default()
             .enabled_features(&features)
             .enabled_extension_names(&extensions)
-            .queue_create_infos(&queue_infos);
+            .queue_create_infos(&queue_infos)
+            .push_next(&mut dynamic_rendering_feature);
 
         let handle = unsafe { instance.create_device(physical_device.handle, &create_info, None) }
             .map_err(DeviceCreateError::VulkanCreation)?;
