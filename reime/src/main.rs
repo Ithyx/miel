@@ -1,6 +1,6 @@
 use miel::{application, vk};
 
-fn init_logging() {
+fn init_logging() -> flexi_logger::LoggerHandle {
     #[cfg(debug_assertions)]
     let log_level = ("debug", flexi_logger::Duplicate::Debug);
     #[cfg(not(debug_assertions))]
@@ -8,14 +8,14 @@ fn init_logging() {
 
     let file_spec = flexi_logger::FileSpec::default().suppress_timestamp();
 
-    let _logger = flexi_logger::Logger::try_with_env_or_str(log_level.0)
+    flexi_logger::Logger::try_with_env_or_str(log_level.0)
         .expect("Failed to setup logging")
         .log_to_file(file_spec)
         .write_mode(flexi_logger::WriteMode::BufferAndFlush)
         .duplicate_to_stdout(log_level.1)
         .set_palette("b9;3;2;8;7".to_owned())
         .start()
-        .expect("Failed to build logger");
+        .expect("Failed to build logger")
 }
 
 fn get_version() -> u32 {
@@ -32,13 +32,15 @@ fn get_version() -> u32 {
 
 struct StartupState {}
 impl application::ApplicationState for StartupState {
-    fn update(&self) {
-        // log::info!("UPDATE")
+    fn update(&self, event_loop: &miel::winit::event_loop::ActiveEventLoop) {
+        log::info!("Update !");
+        log::info!("... and exit.");
+        event_loop.exit();
     }
 }
 
 fn main() {
-    init_logging();
+    let _logger_handle = init_logging();
 
     let app_info = application::WindowCreationInfo {
         title: "霊夢".to_owned(),

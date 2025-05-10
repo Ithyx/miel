@@ -64,7 +64,7 @@ impl Context {
 
         // SAFETY: This is basically foreign code execution, and there is not way to properly ensure safety
         // here. It is unfortunately an uncontrollable risk we must accept.
-        let entry = unsafe { ash::Entry::load()? };
+        let entry = unsafe { ash::Entry::load() }?;
         let instance = Instance::create(
             &entry,
             &create_info.application_name,

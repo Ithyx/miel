@@ -17,7 +17,7 @@ impl From<WindowCreationInfo> for winit::window::WindowAttributes {
 }
 
 pub trait ApplicationState {
-    fn update(&self);
+    fn update(&self, event_loop: &winit::event_loop::ActiveEventLoop);
 }
 
 pub struct Application {
@@ -109,7 +109,7 @@ impl winit::application::ApplicationHandler for Application {
                 let window = self.window.as_ref().unwrap();
                 window.request_redraw();
 
-                self.state.update();
+                self.state.update(&event_loop);
                 // window.pre_present_notify();
             }
 
