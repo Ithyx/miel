@@ -1,22 +1,6 @@
+mod logging;
+
 use miel::{application, vk};
-
-fn init_logging() -> flexi_logger::LoggerHandle {
-    #[cfg(debug_assertions)]
-    let log_level = ("debug", flexi_logger::Duplicate::Debug);
-    #[cfg(not(debug_assertions))]
-    let log_level = ("info", flexi_logger::Duplicate::Info);
-
-    let file_spec = flexi_logger::FileSpec::default().suppress_timestamp();
-
-    flexi_logger::Logger::try_with_env_or_str(log_level.0)
-        .expect("Failed to setup logging")
-        .log_to_file(file_spec)
-        .write_mode(flexi_logger::WriteMode::BufferAndFlush)
-        .duplicate_to_stdout(log_level.1)
-        .set_palette("b9;3;2;8;7".to_owned())
-        .start()
-        .expect("Failed to build logger")
-}
 
 fn get_version() -> u32 {
     let mut engine_version_numbers = option_env!("CARGO_PKG_VERSION")
@@ -40,7 +24,7 @@ impl application::ApplicationState for StartupState {
 }
 
 fn main() {
-    let _logger_handle = init_logging();
+    let _logger_handle = logging::init();
 
     let app_info = application::WindowCreationInfo {
         title: "霊夢".to_owned(),
