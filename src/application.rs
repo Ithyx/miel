@@ -77,7 +77,7 @@ impl Application {
 
 impl winit::application::ApplicationHandler for Application {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let _timer = ScopeTimer::new(log::Level::Info, "application resmued step".to_owned());
+        let _timer = ScopeTimer::new(log::Level::Info, "application \"resumed\" step".to_owned());
 
         match event_loop.create_window(self.window_create_info.clone().into()) {
             Ok(window) => {
