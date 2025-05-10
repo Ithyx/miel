@@ -58,7 +58,7 @@ impl DUMessenger {
                 let create_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
                     .message_severity(
                         vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
-                            | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+                            | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING,
                     )
                     .message_type(
                         vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
@@ -66,6 +66,7 @@ impl DUMessenger {
                             | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
                     )
                     .pfn_user_callback(Some(vulkan_debug_callback));
+                // SAFETY: This is safe as long as the entry used to create the loader is still alive.
                 let handle = unsafe { loader.create_debug_utils_messenger(&create_info, None) }
                     .map_err(DUMCreationError::VulkanCreation)?;
 

@@ -60,6 +60,7 @@ impl PhysicalDevice {
         let physical_devices: Vec<_> = physical_devices
             .into_iter()
             .map(|handle| {
+                // SAFETY: This is safe as long as the entry used to create the instance is still alive.
                 (handle, unsafe {
                     instance.get_physical_device_properties(handle)
                 })
@@ -89,6 +90,7 @@ impl PhysicalDevice {
                     (ash::khr::dynamic_rendering::NAME, false),
                 ]
                 .into();
+                // SAFETY: This is safe as long as the entry used to create the instance is still alive.
                 let supported_extensions = unsafe {
                     instance.enumerate_device_extension_properties(device_handle)
                 }
@@ -133,6 +135,7 @@ impl PhysicalDevice {
         let mut compatible_queue_families: Vec<_> = compatible_devices
             .into_iter()
             .filter_map(|(device_handle, device_info)| {
+                // SAFETY: This is safe as long as the entry used to create the instance is still alive.
                 let qf_properties =
                     unsafe { instance.get_physical_device_queue_family_properties(device_handle) };
                 for (qf_index, queue_family) in qf_properties.iter().enumerate() {
@@ -150,6 +153,7 @@ impl PhysicalDevice {
                         work_queue_index: qf_index,
                     };
 
+                    // SAFETY: This is safe as long as the entry used to create this loader is still alive.
                     let is_surface_compatible = unsafe {
                         target_surface.loader.get_physical_device_surface_support(
                             device_handle,
@@ -265,6 +269,7 @@ impl Device {
             .queue_create_infos(&queue_infos)
             .push_next(&mut dynamic_rendering_feature);
 
+        // SAFETY: This is safe as long as the entry used to create the instance is still alive.
         let handle = unsafe { instance.create_device(physical_device.handle, &create_info, None) }
             .map_err(DeviceCreateError::VulkanCreation)?;
 
@@ -274,6 +279,7 @@ impl Device {
 
 impl Drop for Device {
     fn drop(&mut self) {
+        // SAFETY: This is safe as long as the entry used to create this loader is still alive.
         unsafe { self.destroy_device(None) };
     }
 }
