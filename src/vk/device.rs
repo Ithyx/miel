@@ -30,7 +30,7 @@ fn device_type_to_str(device_type: vk::PhysicalDeviceType) -> &'static str {
 pub(crate) struct PhysicalDevice {
     pub handle: vk::PhysicalDevice,
     pub properties: vk::PhysicalDeviceProperties,
-    pub work_queue_index: u32,
+    pub graphics_qf_index: u32,
 }
 
 #[derive(Debug, Error)]
@@ -150,7 +150,7 @@ impl PhysicalDevice {
                     let device = Self {
                         handle: device_handle,
                         properties: device_info,
-                        work_queue_index: qf_index,
+                        graphics_qf_index: qf_index,
                     };
 
                     // SAFETY: This is safe as long as the entry used to create this loader is still alive.
@@ -229,15 +229,29 @@ impl PhysicalDevice {
     }
 }
 
+pub(crate) struct DeviceQueue {
+    pub handle: vk::Queue,
+    pub family_index: u32,
+}
+
+impl Deref for DeviceQueue {
+    type Target = vk::Queue;
+
+    fn deref(&self) -> &Self::Target {
+        &self.handle
+    }
+}
+
 pub(crate) struct Device {
-    pub handle: ash::Device,
+    pub loader: ash::Device,
+    pub graphics_queue: DeviceQueue,
 }
 
 impl Deref for Device {
     type Target = ash::Device;
 
     fn deref(&self) -> &Self::Target {
-        &self.handle
+        &self.loader
     }
 }
 
@@ -260,7 +274,7 @@ impl Device {
 
         let queue_priorities = [1.0];
         let queue_infos = [vk::DeviceQueueCreateInfo::default()
-            .queue_family_index(physical_device.work_queue_index)
+            .queue_family_index(physical_device.graphics_qf_index)
             .queue_priorities(&queue_priorities)];
 
         let create_info = vk::DeviceCreateInfo::default()
@@ -270,10 +284,21 @@ impl Device {
             .push_next(&mut dynamic_rendering_feature);
 
         // SAFETY: This is safe as long as the entry used to create the instance is still alive.
-        let handle = unsafe { instance.create_device(physical_device.handle, &create_info, None) }
+        let loader = unsafe { instance.create_device(physical_device.handle, &create_info, None) }
             .map_err(DeviceCreateError::VulkanCreation)?;
 
-        Ok(Self { handle })
+        // SAFETY: This is safe as long as the entry used to create this loader is still alive.
+        let graphics_queue_handle =
+            unsafe { loader.get_device_queue(physical_device.graphics_qf_index, 0) };
+        let graphics_queue = DeviceQueue {
+            handle: graphics_queue_handle,
+            family_index: physical_device.graphics_qf_index,
+        };
+
+        Ok(Self {
+            loader,
+            graphics_queue,
+        })
     }
 }
 
