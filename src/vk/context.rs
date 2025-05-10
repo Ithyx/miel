@@ -11,7 +11,7 @@ use super::{
     debug::{DUMCreationError, DUMessenger},
     device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
-    surface::{Surface, SurfaceCreateError},
+    surface::{FormatSelectError, Surface, SurfaceCreateError},
 };
 
 pub struct ContextCreateInfo {
@@ -21,7 +21,7 @@ pub struct ContextCreateInfo {
 
 pub(crate) struct Context {
     device: Device,
-    selected_physical_device: PhysicalDevice,
+    physical_device: PhysicalDevice,
     surface: Surface,
     du_messenger: Option<DUMessenger>,
     instance: Instance,
@@ -50,6 +50,9 @@ pub enum ContextCreateError {
 
     #[error("physical device selection failed")]
     DeviceCreation(#[from] DeviceCreateError),
+
+    #[error("surface format selection failed")]
+    SurfaceFormatSelection(#[from] FormatSelectError),
 }
 
 impl Context {
@@ -73,13 +76,15 @@ impl Context {
             display_handle,
         )?;
         let du_messenger = DUMessenger::create(&entry, &instance.handle)?;
-        let surface = Surface::create(&entry, &instance.handle, display_handle, window_handle)?;
-        let selected_physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
-        let device = Device::create(&instance, &selected_physical_device)?;
+        let mut surface = Surface::create(&entry, &instance.handle, display_handle, window_handle)?;
+        let physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
+        let device = Device::create(&instance, &physical_device)?;
+
+        surface.select_format_from_device(&physical_device)?;
 
         Ok(Self {
             device,
-            selected_physical_device,
+            physical_device,
             surface,
             du_messenger,
             instance,
