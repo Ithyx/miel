@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashMap, ffi::CStr, ops::Deref};
 
 use ash::vk::{self, QueueFlags};
 use thiserror::Error;
@@ -77,9 +77,44 @@ impl PhysicalDevice {
         // Filter what we can even without queue families
         let compatible_devices: Vec<_> = physical_devices
             .into_iter()
-            .filter(|(_, device_info)| {
+            .filter(|(device_handle, device_info)| {
+                // VK API version check
                 if device_info.api_version <= minimum_vk_version {
                     return false;
+                }
+
+                // Device extension check
+                let mut required_extensions: HashMap<&CStr, bool> = [
+                    // Other required device extensions go here
+                    (ash::khr::dynamic_rendering::NAME, false),
+                ]
+                .into();
+                let supported_extensions = unsafe {
+                    instance.enumerate_device_extension_properties(*device_handle)
+                }
+                .inspect_err(|err| {
+                    log::warn!(
+                        "Failed to query device extensions for device {} ({err}), ignoring.",
+                        device_info
+                            .device_name_as_c_str()
+                            .unwrap_or(c"INVALID")
+                            .to_str()
+                            .unwrap_or("INVALID")
+                    );
+                })
+                .unwrap_or(vec![]);
+
+                for extension in &supported_extensions {
+                    let extension_name = extension.extension_name_as_c_str().unwrap_or(c"");
+                    if let Some(extension_check) = required_extensions.get_mut(extension_name) {
+                        *extension_check = true;
+                    }
+                }
+
+                for extension_check in required_extensions.values() {
+                    if !(*extension_check) {
+                        return false;
+                    }
                 }
 
                 true
