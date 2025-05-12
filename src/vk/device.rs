@@ -86,8 +86,9 @@ impl PhysicalDevice {
 
                 // Device extension check
                 let mut required_extensions: HashMap<&CStr, bool> = [
-                    // Other required device extensions go here
+                    (ash::khr::swapchain::NAME, false),
                     (ash::khr::dynamic_rendering::NAME, false),
+                    // Other required device extensions go here
                 ]
                 .into();
                 // SAFETY: This is safe as long as the entry used to create the instance is still alive.
@@ -270,7 +271,10 @@ impl Device {
         let mut dynamic_rendering_feature =
             vk::PhysicalDeviceDynamicRenderingFeatures::default().dynamic_rendering(true);
 
-        let extensions = [ash::khr::dynamic_rendering::NAME.as_ptr()];
+        let extensions = [
+            ash::khr::swapchain::NAME.as_ptr(),
+            ash::khr::dynamic_rendering::NAME.as_ptr(),
+        ];
 
         let queue_priorities = [1.0];
         let queue_infos = [vk::DeviceQueueCreateInfo::default()
