@@ -21,13 +21,13 @@ pub trait ApplicationState {
 }
 
 pub struct Application {
-    window_create_info: WindowCreationInfo,
-    window: Option<winit::window::Window>,
+    state: Box<dyn ApplicationState>,
 
     vulkan_context_create_info: ContextCreateInfo,
     vulkan_context: Option<crate::vk::context::Context>,
 
-    state: Box<dyn ApplicationState>,
+    window_create_info: WindowCreationInfo,
+    window: Option<winit::window::Window>,
 }
 
 #[derive(Debug, Error)]
