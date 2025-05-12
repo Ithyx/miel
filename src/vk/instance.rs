@@ -77,6 +77,7 @@ impl Instance {
 
 impl Drop for Instance {
     fn drop(&mut self) {
+        log::debug!("destroying instance");
         // SAFETY: This is safe as long as the entry used to create the loader is still alive.
         unsafe { self.loader.destroy_instance(None) };
     }

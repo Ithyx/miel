@@ -308,6 +308,7 @@ impl Device {
 
 impl Drop for Device {
     fn drop(&mut self) {
+        log::debug!("destroying logical device");
         // SAFETY: This is safe as long as the entry used to create this loader is still alive.
         unsafe { self.destroy_device(None) };
     }

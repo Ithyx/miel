@@ -81,6 +81,7 @@ impl DUMessenger {
 
 impl Drop for DUMessenger {
     fn drop(&mut self) {
+        log::debug!("destroying DUMessenger");
         // SAFETY: This is safe as long as the entry used to create the loader is still alive.
         unsafe { self.loader.destroy_debug_utils_messenger(self.handle, None) };
     }
