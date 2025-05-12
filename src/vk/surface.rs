@@ -7,7 +7,10 @@ use super::{device::PhysicalDevice, instance::Instance};
 pub(crate) struct Surface {
     pub handle: vk::SurfaceKHR,
     pub loader: khr::surface::Instance,
+
     pub format: vk::SurfaceFormatKHR,
+    pub capabilities: vk::SurfaceCapabilitiesKHR,
+    pub present_mode: vk::PresentModeKHR,
 }
 
 #[derive(Debug, Error)]
@@ -17,9 +20,15 @@ pub enum SurfaceCreateError {
 }
 
 #[derive(Debug, Error)]
-pub enum FormatSelectError {
+pub enum DeviceSetupError {
+    #[error("vulkan call to fetch capabilities from surface failed")]
+    CapabilitiesFetching(vk::Result),
+
+    #[error("vulkan call to enumerate present modes from surface failed")]
+    PresentMoodeEnumeration(vk::Result),
+
     #[error("vulkan call to enumerate formats from surface failed")]
-    Enumeration(vk::Result),
+    FormatEnumeration(vk::Result),
 
     #[error("no valid format found")]
     NoFormat,
@@ -45,22 +54,43 @@ impl Surface {
             handle,
             loader,
             format: vk::SurfaceFormatKHR::default(),
+            capabilities: vk::SurfaceCapabilitiesKHR::default(),
+            present_mode: vk::PresentModeKHR::FIFO,
         })
     }
 
-    pub fn select_format_from_device(
+    pub fn setup_from_device(
         &mut self,
         physical_device: &PhysicalDevice,
-    ) -> Result<(), FormatSelectError> {
+    ) -> Result<(), DeviceSetupError> {
+        let capabilities = unsafe {
+            self.loader
+                .get_physical_device_surface_capabilities(physical_device.handle, self.handle)
+        }
+        .map_err(DeviceSetupError::CapabilitiesFetching)?;
+        self.capabilities = capabilities;
+
+        let present_modes = unsafe {
+            self.loader
+                .get_physical_device_surface_present_modes(physical_device.handle, self.handle)
+        }
+        .map_err(DeviceSetupError::PresentMoodeEnumeration)?;
+        if let Some(&present_mode) = present_modes
+            .iter()
+            .find(|&&mode| mode == vk::PresentModeKHR::MAILBOX)
+        {
+            self.present_mode = present_mode;
+        }
+
         let available_formats = unsafe {
             self.loader
                 .get_physical_device_surface_formats(physical_device.handle, self.handle)
         }
-        .map_err(FormatSelectError::Enumeration)?;
+        .map_err(DeviceSetupError::FormatEnumeration)?;
 
-        let fallback = *available_formats
+        let format_fallback = *available_formats
             .first()
-            .ok_or(FormatSelectError::NoFormat)?;
+            .ok_or(DeviceSetupError::NoFormat)?;
 
         let selected_format = available_formats
             .into_iter()
@@ -68,7 +98,7 @@ impl Surface {
                 format.format == vk::Format::B8G8R8A8_SRGB
                     && format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
             })
-            .unwrap_or(fallback);
+            .unwrap_or(format_fallback);
 
         log::debug!(
             "Selected surface format {:?} with colorspace {:?}",
@@ -83,6 +113,7 @@ impl Surface {
 
 impl Drop for Surface {
     fn drop(&mut self) {
+        log::debug!("destroying surface");
         // SAFETY: This is safe as long as the entry used to create the loader is still alive.
         unsafe {
             self.loader.destroy_surface(self.handle, None);
