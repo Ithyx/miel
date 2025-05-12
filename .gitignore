@@ -19,3 +19,6 @@ target/
 Cargo.lock
 
 *.log
+
+# VSCode specific
+.vscode/
