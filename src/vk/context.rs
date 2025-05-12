@@ -14,7 +14,8 @@ use super::{
     debug::{DUMCreationError, DUMessenger},
     device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
-    surface::{FormatSelectError, Surface, SurfaceCreateError},
+    surface::{DeviceSetupError, Surface, SurfaceCreateError},
+    swapchain::{Swapchain, SwapchainCreateError},
 };
 
 pub struct ContextCreateInfo {
@@ -23,14 +24,16 @@ pub struct ContextCreateInfo {
 }
 
 pub(crate) struct Context {
-    allocator: ThreadSafeRef<Allocator>,
+    pub swapchain: Swapchain,
 
-    device: Device,
-    physical_device: PhysicalDevice,
-    surface: Surface,
-    du_messenger: Option<DUMessenger>,
-    instance: Instance,
-    entry: ash::Entry,
+    pub allocator: ThreadSafeRef<Allocator>,
+
+    pub device: Device,
+    pub physical_device: PhysicalDevice,
+    pub surface: Surface,
+    pub du_messenger: Option<DUMessenger>,
+    pub instance: Instance,
+    pub entry: ash::Entry,
 }
 
 #[derive(Debug, Error)]
@@ -57,10 +60,13 @@ pub enum ContextCreateError {
     DeviceCreation(#[from] DeviceCreateError),
 
     #[error("surface format selection failed")]
-    SurfaceFormatSelection(#[from] FormatSelectError),
+    SurfaceFormatSelection(#[from] DeviceSetupError),
 
     #[error("GPU allocator creation failed")]
     AllocatorCreation(#[from] AllocatorCreateError),
+
+    #[error("swapchain creation failed")]
+    SwapchainCreation(#[from] SwapchainCreateError),
 }
 
 impl Context {
@@ -87,11 +93,23 @@ impl Context {
         let mut surface = Surface::create(&entry, &instance, display_handle, window_handle)?;
         let physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
         let device = Device::create(&instance, &physical_device)?;
-        surface.select_format_from_device(&physical_device)?;
+        surface.setup_from_device(&physical_device)?;
 
         let allocator = Allocator::create(&instance, &physical_device, &device)?;
 
+        let swapchain = Swapchain::create(
+            &instance,
+            &device,
+            &surface,
+            vk::Extent2D {
+                width: 1280,
+                height: 720,
+            },
+        )?;
+
         Ok(Self {
+            swapchain,
+
             allocator: ThreadSafeRef::new(allocator),
 
             device,
@@ -101,5 +119,12 @@ impl Context {
             instance,
             entry,
         })
+    }
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        log::debug!("Waiting for device to be idle before destroying resources");
+        unsafe { self.device.device_wait_idle() }.expect("device should wait before shutting down");
     }
 }
