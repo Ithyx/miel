@@ -26,9 +26,9 @@ pub struct ContextCreateInfo {
 pub(crate) struct Context {
     pub swapchain: Swapchain,
 
-    pub allocator: ThreadSafeRef<Allocator>,
+    pub allocator_ref: ThreadSafeRef<Allocator>,
 
-    pub device: Device,
+    pub device_ref: ThreadSafeRef<Device>,
     pub physical_device: PhysicalDevice,
     pub surface: Surface,
     pub du_messenger: Option<DUMessenger>,
@@ -92,14 +92,20 @@ impl Context {
         let du_messenger = DUMessenger::create(&entry, &instance)?;
         let mut surface = Surface::create(&entry, &instance, display_handle, window_handle)?;
         let physical_device = PhysicalDevice::select(&instance, vk_version, &surface)?;
-        let device = Device::create(&instance, &physical_device)?;
         surface.setup_from_device(&physical_device)?;
 
-        let allocator = Allocator::create(&instance, &physical_device, &device)?;
+        // These reesources need to be stored as shared reeferences as they are often needed for
+        // destruction anbd thus have to be stored in every sub-resource.
+        let device_ref = ThreadSafeRef::new(Device::create(&instance, &physical_device)?);
+        let allocator_ref = ThreadSafeRef::new(Allocator::create(
+            &instance,
+            &physical_device,
+            &device_ref.lock(),
+        )?);
 
         let swapchain = Swapchain::create(
             &instance,
-            &device,
+            device_ref.clone(),
             &surface,
             vk::Extent2D {
                 width: 1280,
@@ -110,21 +116,14 @@ impl Context {
         Ok(Self {
             swapchain,
 
-            allocator: ThreadSafeRef::new(allocator),
+            allocator_ref,
 
-            device,
+            device_ref,
             physical_device,
             surface,
             du_messenger,
             instance,
             entry,
         })
-    }
-}
-
-impl Drop for Context {
-    fn drop(&mut self) {
-        log::debug!("Waiting for device to be idle before destroying resources");
-        unsafe { self.device.device_wait_idle() }.expect("device should wait before shutting down");
     }
 }
