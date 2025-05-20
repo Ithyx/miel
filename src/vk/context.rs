@@ -23,17 +23,17 @@ pub struct ContextCreateInfo {
     pub application_version: u32,
 }
 
-pub(crate) struct Context {
-    pub swapchain: Swapchain,
+pub struct Context {
+    pub(crate) swapchain: Swapchain,
 
-    pub allocator_ref: ThreadSafeRef<Allocator>,
+    pub(crate) allocator_ref: ThreadSafeRef<Allocator>,
 
-    pub device_ref: ThreadSafeRef<Device>,
-    pub physical_device: PhysicalDevice,
-    pub surface: Surface,
-    pub du_messenger: Option<DUMessenger>,
-    pub instance: Instance,
-    pub entry: ash::Entry,
+    pub(crate) device_ref: ThreadSafeRef<Device>,
+    pub(crate) physical_device: PhysicalDevice,
+    pub(crate) surface: Surface,
+    pub(crate) du_messenger: Option<DUMessenger>,
+    pub(crate) instance: Instance,
+    pub(crate) entry: ash::Entry,
 }
 
 #[derive(Debug, Error)]
@@ -111,6 +111,7 @@ impl Context {
                 width: 1280,
                 height: 720,
             },
+            allocator_ref.clone(),
         )?;
 
         Ok(Self {

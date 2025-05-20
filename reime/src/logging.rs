@@ -15,7 +15,7 @@ impl flexi_logger::filter::LogLineFilter for LogFilter {
 }
 pub fn init() -> flexi_logger::LoggerHandle {
     #[cfg(debug_assertions)]
-    let log_level = ("debug", flexi_logger::Duplicate::Debug);
+    let log_level = ("trace", flexi_logger::Duplicate::Debug);
     #[cfg(not(debug_assertions))]
     let log_level = ("info", flexi_logger::Duplicate::Info);
 

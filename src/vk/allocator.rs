@@ -1,4 +1,8 @@
+use std::{fmt::Debug, ops::Deref};
+
 use thiserror::Error;
+
+use crate::utils::ThreadSafeRef;
 
 use super::{
     device::{Device, PhysicalDevice},
@@ -32,5 +36,42 @@ impl Allocator {
         let inner = gpu_allocator::vulkan::Allocator::new(&create_info)?;
 
         Ok(Self { inner })
+    }
+
+    pub fn allocate(
+        &mut self,
+        desc: &gpu_allocator::vulkan::AllocationCreateDesc<'_>,
+        allocator_ref: ThreadSafeRef<Self>,
+    ) -> Result<Allocation, gpu_allocator::AllocationError> {
+        log::trace!("allocating {}", desc.name);
+        self.inner.allocate(desc).map(|handle| Allocation {
+            handle: Some(handle),
+            allocator_ref,
+        })
+    }
+}
+
+// A useful wrapper type to hold an allocation and destroy it on drop
+pub(crate) struct Allocation {
+    handle: Option<gpu_allocator::vulkan::Allocation>,
+    allocator_ref: ThreadSafeRef<Allocator>,
+}
+
+impl Deref for Allocation {
+    type Target = gpu_allocator::vulkan::Allocation;
+
+    fn deref(&self) -> &Self::Target {
+        // There is no way to have a None in this option, unless after dropping which is
+        // impossible, this unwrap is guarateed safe
+        self.handle.as_ref().unwrap()
+    }
+}
+
+impl Drop for Allocation {
+    fn drop(&mut self) {
+        if let Some(allocation) = self.handle.take() {
+            log::trace!("freeing allocation {allocation:?}");
+            let _ = self.allocator_ref.lock().inner.free(allocation);
+        }
     }
 }

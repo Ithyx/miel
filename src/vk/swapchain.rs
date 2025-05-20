@@ -3,9 +3,15 @@ use thiserror::Error;
 
 use crate::utils::ThreadSafeRef;
 
-use super::{device::Device, instance::Instance, surface::Surface};
+use super::{
+    allocator::Allocator,
+    device::Device,
+    image::{Image, ImageBuildError, ImageCreateInfo},
+    instance::Instance,
+    surface::Surface,
+};
 
-pub(crate) struct Image {
+pub(crate) struct SwapchainImage {
     pub handle: vk::Image,
     pub view: vk::ImageView,
 }
@@ -15,8 +21,10 @@ pub(crate) struct Swapchain {
     pub loader: khr::swapchain::Device,
 
     pub extent: vk::Extent2D,
-    pub images: Vec<Image>,
+    pub images: Vec<SwapchainImage>,
+    pub depth_image: Image,
 
+    // bookkeeping
     device_ref: ThreadSafeRef<Device>,
 }
 
@@ -30,6 +38,9 @@ pub enum SwapchainCreateError {
 
     #[error("vulkan call to create swapchain image views failed")]
     ImageViewCreation(vk::Result),
+
+    #[error("depth image building failed")]
+    DepthImageBuilding(ImageBuildError),
 }
 
 impl Swapchain {
@@ -38,6 +49,7 @@ impl Swapchain {
         device_ref: ThreadSafeRef<Device>,
         surface: &Surface,
         suggested_size: vk::Extent2D,
+        allocator_ref: ThreadSafeRef<Allocator>,
     ) -> Result<Self, SwapchainCreateError> {
         let device = device_ref.lock();
         let loader = khr::swapchain::Device::new(instance, &device);
@@ -94,24 +106,33 @@ impl Swapchain {
                     .base_array_layer(0)
                     .layer_count(1),
             );
-        let images: Result<Vec<_>, _> = images_handles
+        let images = images_handles
             .into_iter()
             .map(|handle| {
                 let image_view_create_info = image_view_create_info.image(handle);
                 let view = unsafe { device.create_image_view(&image_view_create_info, None) }
                     .map_err(SwapchainCreateError::ImageViewCreation)?;
 
-                Ok(Image { handle, view })
+                Ok(SwapchainImage { handle, view })
             })
-            .collect();
-        let images = images?;
+            .collect::<Result<Vec<_>, _>>()?;
         drop(device);
+
+        let depth_extent = vk::Extent3D {
+            width: extent.width,
+            height: extent.height,
+            depth: 1,
+        };
+        let depth_image = ImageCreateInfo::swapchain_depth_image(depth_extent)
+            .build_from_base_structs(device_ref.clone(), allocator_ref)
+            .map_err(SwapchainCreateError::DepthImageBuilding)?;
 
         Ok(Self {
             handle,
             loader,
             extent,
             images,
+            depth_image,
             device_ref,
         })
     }

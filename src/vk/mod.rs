@@ -6,3 +6,4 @@ pub(crate) mod surface;
 pub(crate) mod swapchain;
 
 pub mod context;
+pub mod image;
