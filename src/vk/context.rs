@@ -23,6 +23,7 @@ pub struct ContextCreateInfo {
     pub application_version: u32,
 }
 
+#[allow(dead_code)]
 pub struct Context {
     pub(crate) swapchain: Swapchain,
 

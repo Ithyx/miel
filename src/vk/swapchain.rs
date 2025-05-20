@@ -11,11 +11,13 @@ use super::{
     surface::Surface,
 };
 
+#[allow(dead_code)]
 pub(crate) struct SwapchainImage {
     pub handle: vk::Image,
     pub view: vk::ImageView,
 }
 
+#[allow(dead_code)]
 pub(crate) struct Swapchain {
     pub handle: vk::SwapchainKHR,
     pub loader: khr::swapchain::Device,

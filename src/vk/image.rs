@@ -116,6 +116,7 @@ impl ImageCreateInfo<'_> {
     }
 }
 
+#[allow(dead_code)]
 pub struct Image {
     pub(crate) handle: vk::Image,
     pub(crate) allocation: Allocation,
