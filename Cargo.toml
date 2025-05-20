@@ -4,7 +4,12 @@ members = [".", "reime"]
 
 [package]
 name = "miel"
+description = "A simple rendering framework leveraging the Vulkan API"
 version = "0.1.0"
+homepage = "https://github.com/Ithyx/miel"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
 edition = "2024"
 
 [dependencies]
