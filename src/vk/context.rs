@@ -11,6 +11,7 @@ use crate::utils::ThreadSafeRef;
 
 use super::{
     allocator::{Allocator, AllocatorCreateError},
+    commands::{CommandManager, CommandManagerCreateError},
     debug::{DUMCreationError, DUMessenger},
     device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
@@ -25,6 +26,7 @@ pub struct ContextCreateInfo {
 
 #[allow(dead_code)]
 pub struct Context {
+    pub(crate) command_manager: CommandManager,
     pub(crate) swapchain: Swapchain,
 
     pub(crate) allocator_ref: ThreadSafeRef<Allocator>,
@@ -68,6 +70,9 @@ pub enum ContextCreateError {
 
     #[error("swapchain creation failed")]
     SwapchainCreation(#[from] SwapchainCreateError),
+
+    #[error("command manager creation failed")]
+    CommandManagerCreation(#[from] CommandManagerCreateError),
 }
 
 impl Context {
@@ -115,7 +120,10 @@ impl Context {
             allocator_ref.clone(),
         )?;
 
+        let command_manager = CommandManager::try_new(device_ref.clone())?;
+
         Ok(Self {
+            command_manager,
             swapchain,
 
             allocator_ref,
