@@ -14,6 +14,7 @@ use super::{
 pub struct ImageCreateInfo<'a> {
     pub image_info: vk::ImageCreateInfo<'a>,
     pub image_view_info: vk::ImageViewCreateInfo<'a>,
+    pub allocation_name: &'a str,
 }
 
 #[derive(Debug, Error)]
@@ -58,6 +59,7 @@ impl ImageCreateInfo<'_> {
         Self {
             image_info,
             image_view_info,
+            allocation_name: "depth image",
         }
     }
 
@@ -80,7 +82,7 @@ impl ImageCreateInfo<'_> {
 
         let memory_requirements = unsafe { device.get_image_memory_requirements(handle) };
         let allocation_info = gpu_allocator::vulkan::AllocationCreateDesc {
-            name: "depth image allocation",
+            name: &self.allocation_name,
             requirements: memory_requirements,
             location: gpu_allocator::MemoryLocation::GpuOnly,
             linear: false,
