@@ -26,6 +26,10 @@ pub(crate) struct Swapchain {
     pub images: Vec<SwapchainImage>,
     pub depth_image: Image,
 
+    pub present_semaphore: vk::Semaphore,
+    pub render_semaphore: vk::Semaphore,
+    pub render_fence: vk::Fence,
+
     // bookkeeping
     device_ref: ThreadSafeRef<Device>,
 }
@@ -40,6 +44,9 @@ pub enum SwapchainCreateError {
 
     #[error("vulkan call to create swapchain image views failed")]
     ImageViewCreation(vk::Result),
+
+    #[error("vulkan call to create sync objects necessary for rendering failed")]
+    RenderSyncObjectsCreation(vk::Result),
 
     #[error("depth image building failed")]
     DepthImageBuilding(ImageBuildError),
@@ -118,6 +125,17 @@ impl Swapchain {
                 Ok(SwapchainImage { handle, view })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let semaphore_info = vk::SemaphoreCreateInfo::default();
+        let present_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
+            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
+        let render_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
+            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
+
+        let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
+        let render_fence = unsafe { device.create_fence(&fence_info, None) }
+            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
+
         drop(device);
 
         let depth_extent = vk::Extent3D {
@@ -135,6 +153,9 @@ impl Swapchain {
             extent,
             images,
             depth_image,
+            present_semaphore,
+            render_semaphore,
+            render_fence,
             device_ref,
         })
     }
@@ -147,13 +168,12 @@ impl Drop for Swapchain {
         unsafe { device.device_wait_idle() }.expect("device should wait before shutting down");
 
         log::debug!("destroying swapchain");
+        unsafe { device.destroy_fence(self.render_fence, None) };
+        unsafe { device.destroy_semaphore(self.render_semaphore, None) };
+        unsafe { device.destroy_semaphore(self.present_semaphore, None) };
         for image in &self.images {
-            unsafe {
-                device.destroy_image_view(image.view, None);
-            };
+            unsafe { device.destroy_image_view(image.view, None) };
         }
-        unsafe {
-            self.loader.destroy_swapchain(self.handle, None);
-        };
+        unsafe { self.loader.destroy_swapchain(self.handle, None) };
     }
 }

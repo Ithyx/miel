@@ -20,7 +20,7 @@ pub struct ImageCreateInfo<'a> {
 #[derive(Debug, Error)]
 pub enum ImageBuildError {
     #[error("vulkan creation of the image failed")]
-    VulkanImageCreation(vk::Result),
+    VulkanCreation(vk::Result),
 
     #[error("memory allocation failed")]
     Allocation(#[from] AllocationError),
@@ -29,7 +29,7 @@ pub enum ImageBuildError {
     MemoryBind(vk::Result),
 
     #[error("vulkan creation of the image view failed")]
-    VulkanImageViewCreation(vk::Result),
+    ImageViewCreation(vk::Result),
 }
 
 impl ImageCreateInfo<'_> {
@@ -78,11 +78,11 @@ impl ImageCreateInfo<'_> {
         let mut allocator = allocator_ref.lock();
 
         let handle = unsafe { device.create_image(&self.image_info, None) }
-            .map_err(ImageBuildError::VulkanImageCreation)?;
+            .map_err(ImageBuildError::VulkanCreation)?;
 
         let memory_requirements = unsafe { device.get_image_memory_requirements(handle) };
         let allocation_info = gpu_allocator::vulkan::AllocationCreateDesc {
-            name: &self.allocation_name,
+            name: self.allocation_name,
             requirements: memory_requirements,
             location: gpu_allocator::MemoryLocation::GpuOnly,
             linear: false,
@@ -95,7 +95,7 @@ impl ImageCreateInfo<'_> {
 
         self.image_view_info.image = handle;
         let view = unsafe { device.create_image_view(&self.image_view_info, None) }
-            .map_err(ImageBuildError::VulkanImageViewCreation)?;
+            .map_err(ImageBuildError::ImageViewCreation)?;
 
         drop(allocator);
         drop(device);
