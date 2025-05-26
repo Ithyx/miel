@@ -16,8 +16,16 @@ impl From<WindowCreationInfo> for winit::window::WindowAttributes {
     }
 }
 
+pub enum ControlFlow {
+    Continue,
+    SwitchState(Box<dyn ApplicationState>),
+    Exit,
+}
+
 pub trait ApplicationState {
-    fn update(&self, event_loop: &winit::event_loop::ActiveEventLoop);
+    fn update(&self, _ctx: &mut Context) -> ControlFlow {
+        ControlFlow::Continue
+    }
 }
 
 pub struct Application {
@@ -109,7 +117,21 @@ impl winit::application::ApplicationHandler for Application {
                 let window = self.window.as_ref().unwrap();
                 window.request_redraw();
 
-                self.state.update(event_loop);
+                let flow = match self.vulkan_context.as_mut() {
+                    Some(context) => self.state.update(context),
+                    _ => {
+                        log::warn!("no valid context for update state, skipping");
+                        ControlFlow::Continue
+                    }
+                };
+
+                match flow {
+                    ControlFlow::Continue => (),
+                    ControlFlow::SwitchState(new_state) => {
+                        self.state = new_state;
+                    }
+                    ControlFlow::Exit => event_loop.exit(),
+                }
                 // window.pre_present_notify();
             }
 

@@ -1,6 +1,8 @@
 mod logging;
+mod test_state;
 
 use miel::{application, vk};
+use test_state::TestState;
 
 fn get_version() -> u32 {
     let mut engine_version_numbers = option_env!("CARGO_PKG_VERSION")
@@ -16,10 +18,9 @@ fn get_version() -> u32 {
 
 struct StartupState {}
 impl application::ApplicationState for StartupState {
-    fn update(&self, event_loop: &miel::winit::event_loop::ActiveEventLoop) {
-        log::info!("Update !");
-        log::info!("... and exit.");
-        event_loop.exit();
+    fn update(&self, ctx: &mut vk::context::Context) -> application::ControlFlow {
+        let new_state = TestState::new(ctx);
+        application::ControlFlow::SwitchState(Box::new(new_state))
     }
 }
 
