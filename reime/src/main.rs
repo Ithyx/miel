@@ -1,7 +1,7 @@
 mod logging;
 mod test_state;
 
-use miel::{application, vk};
+use miel::{application, gfx};
 use test_state::TestState;
 
 fn get_version() -> u32 {
@@ -18,7 +18,7 @@ fn get_version() -> u32 {
 
 struct StartupState {}
 impl application::ApplicationState for StartupState {
-    fn update(&self, ctx: &mut vk::context::Context) -> application::ControlFlow {
+    fn update(&self, ctx: &mut gfx::context::Context) -> application::ControlFlow {
         let new_state = TestState::new(ctx);
         application::ControlFlow::SwitchState(Box::new(new_state))
     }
@@ -30,12 +30,12 @@ fn main() {
     let app_info = application::WindowCreationInfo {
         title: "霊夢".to_owned(),
     };
-    let vk_info = vk::context::ContextCreateInfo {
+    let gfx_info = gfx::context::ContextCreateInfo {
         application_name: c"霊夢".to_owned(),
         application_version: get_version(),
     };
     let state = StartupState {};
-    let app = application::Application::build(app_info, vk_info, Box::new(state))
+    let app = application::Application::build(app_info, gfx_info, Box::new(state))
         .expect("app should be buildable");
 
     app.run().expect("app should be able to run");

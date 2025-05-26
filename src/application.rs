@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::{
     debug::ScopeTimer,
-    vk::context::{Context, ContextCreateError, ContextCreateInfo},
+    gfx::context::{Context, ContextCreateError, ContextCreateInfo},
 };
 
 #[derive(Debug, Clone)]
@@ -31,8 +31,8 @@ pub trait ApplicationState {
 pub struct Application {
     state: Box<dyn ApplicationState>,
 
-    vulkan_context_create_info: ContextCreateInfo,
-    vulkan_context: Option<crate::vk::context::Context>,
+    gfx_context_create_info: ContextCreateInfo,
+    gfx_context: Option<crate::gfx::context::Context>,
 
     window_create_info: WindowCreationInfo,
     window: Option<winit::window::Window>,
@@ -63,8 +63,8 @@ impl Application {
             window_create_info,
             window: None,
 
-            vulkan_context_create_info,
-            vulkan_context: None,
+            gfx_context_create_info: vulkan_context_create_info,
+            gfx_context: None,
 
             state: start_state,
         })
@@ -89,8 +89,8 @@ impl winit::application::ApplicationHandler for Application {
 
         match event_loop.create_window(self.window_create_info.clone().into()) {
             Ok(window) => {
-                self.vulkan_context = Some(
-                    Context::create(&window, &self.vulkan_context_create_info)
+                self.gfx_context = Some(
+                    Context::create(&window, &self.gfx_context_create_info)
                         .expect("context should be creatable"),
                 );
 
@@ -117,7 +117,7 @@ impl winit::application::ApplicationHandler for Application {
                 let window = self.window.as_ref().unwrap();
                 window.request_redraw();
 
-                let flow = match self.vulkan_context.as_mut() {
+                let flow = match self.gfx_context.as_mut() {
                     Some(context) => self.state.update(context),
                     _ => {
                         log::warn!("no valid context for update state, skipping");
