@@ -90,7 +90,7 @@ impl winit::application::ApplicationHandler for Application {
         match event_loop.create_window(self.window_create_info.clone().into()) {
             Ok(window) => {
                 self.gfx_context = Some(
-                    Context::create(&window, &self.gfx_context_create_info)
+                    Context::new(&window, &self.gfx_context_create_info)
                         .expect("context should be creatable"),
                 );
 

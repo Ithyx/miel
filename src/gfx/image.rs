@@ -8,6 +8,7 @@ use super::{
     allocator::{Allocation, Allocator},
     context::Context,
     device::Device,
+    render_graph::resource::ImageAttachmentDescription,
 };
 
 #[derive(Default)]
@@ -32,7 +33,7 @@ pub enum ImageBuildError {
     ImageViewCreation(vk::Result),
 }
 
-impl ImageCreateInfo<'_> {
+impl<'a> ImageCreateInfo<'a> {
     pub(crate) fn swapchain_depth_image(depth_extent: vk::Extent3D) -> Self {
         let image_info = vk::ImageCreateInfo::default()
             .extent(depth_extent)
@@ -63,7 +64,46 @@ impl ImageCreateInfo<'_> {
         }
     }
 
-    pub fn build(self, context: &Context) -> Result<Image, ImageBuildError> {
+    pub(crate) fn from_attachment_description(description: &'a ImageAttachmentDescription) -> Self {
+        let extent = match description.size {
+            super::render_graph::resource::AttachmentSize::Swapchain => vk::Extent3D::default(),
+            super::render_graph::resource::AttachmentSize::Custom(extent3_d) => extent3_d,
+        };
+
+        let image_info = vk::ImageCreateInfo::default()
+            .extent(extent)
+            .image_type(vk::ImageType::TYPE_2D)
+            .format(description.format)
+            .mip_levels(1)
+            .array_layers(description.layer_count)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .usage(description.usage)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        let image_view_info = vk::ImageViewCreateInfo::default()
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(description.format)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: description.layer_count,
+            });
+
+        Self {
+            image_info,
+            image_view_info,
+            allocation_name: &description.name,
+        }
+    }
+
+    pub fn build(mut self, context: &Context) -> Result<Image, ImageBuildError> {
+        if self.image_info.extent == vk::Extent3D::default() {
+            self.image_info.extent = context.swapchain.extent.into();
+        }
+
         self.build_from_base_structs(context.device_ref.clone(), context.allocator_ref.clone())
     }
 
@@ -139,5 +179,11 @@ impl Drop for Image {
 
         unsafe { device.destroy_image_view(self.view, None) };
         unsafe { device.destroy_image(self.handle, None) };
+    }
+}
+
+impl<'a> Image {
+    pub fn create_info() -> ImageCreateInfo<'a> {
+        ImageCreateInfo::default()
     }
 }

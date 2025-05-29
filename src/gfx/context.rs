@@ -15,6 +15,7 @@ use super::{
     debug::{DUMCreationError, DUMessenger},
     device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
+    render_graph::{RenderGraph, RenderGraphCreateError, RenderGraphInfo},
     surface::{DeviceSetupError, Surface, SurfaceCreateError},
     swapchain::{Swapchain, SwapchainCreateError},
 };
@@ -26,6 +27,8 @@ pub struct ContextCreateInfo {
 
 #[allow(dead_code)]
 pub struct Context {
+    pub(crate) render_graph: Option<RenderGraph>,
+
     pub(crate) command_manager: CommandManager,
     pub(crate) swapchain: Swapchain,
 
@@ -75,8 +78,14 @@ pub enum ContextCreateError {
     CommandManagerCreation(#[from] CommandManagerCreateError),
 }
 
+#[derive(Debug, Error)]
+pub enum RenderGraphBindError {
+    #[error("render graph creation failed")]
+    RenderGraphCreation(#[from] RenderGraphCreateError),
+}
+
 impl Context {
-    pub fn create(
+    pub fn new(
         window: &Window,
         create_info: &ContextCreateInfo,
     ) -> Result<Self, ContextCreateError> {
@@ -123,6 +132,8 @@ impl Context {
         let command_manager = CommandManager::try_new(device_ref.clone())?;
 
         Ok(Self {
+            render_graph: None,
+
             command_manager,
             swapchain,
 
@@ -135,5 +146,12 @@ impl Context {
             instance,
             entry,
         })
+    }
+
+    pub fn bind_rendergraph(&mut self, info: RenderGraphInfo) -> Result<(), RenderGraphBindError> {
+        let new_rendergraph = RenderGraph::new(info, self)?;
+        self.render_graph = Some(new_rendergraph);
+
+        Ok(())
     }
 }

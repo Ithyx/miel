@@ -8,3 +8,4 @@ pub(crate) mod swapchain;
 
 pub mod context;
 pub mod image;
+pub mod render_graph;
