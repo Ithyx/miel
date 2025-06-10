@@ -6,7 +6,7 @@ members = [".", "reime"]
 name = "miel"
 description = "A simple rendering framework leveraging the Vulkan API"
 version = "0.1.0"
-homepage = "https://github.com/Ithyx/miel"
+repository = "https://github.com/Ithyx/miel"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 
