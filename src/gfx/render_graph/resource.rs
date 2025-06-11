@@ -87,7 +87,7 @@ impl ImageAttachmentDescription {
     }
 }
 
-pub(crate) struct ImageAttachment {
+pub struct ImageAttachment {
     pub image: Image,
     pub description: ImageAttachmentDescription,
 }
@@ -163,6 +163,6 @@ pub enum RegistryCreateError {
     ImageAttachmentCreation(#[from] ImageAttachmentCreateError),
 }
 
-pub(crate) struct ResourceRegistry {
-    attachments: HashMap<ResourceID, ImageAttachment>,
+pub struct ResourceRegistry {
+    pub attachments: HashMap<ResourceID, ImageAttachment>,
 }
