@@ -15,8 +15,8 @@ use miel::{
 };
 
 struct GBufferData {
-    albedo: ResourceID,
-    normal: ResourceID,
+    pub albedo: ResourceID,
+    pub normal: ResourceID,
 }
 fn record_gbuffer(
     _resource_ids: &mut GBufferData,
@@ -28,7 +28,13 @@ fn record_gbuffer(
 pub struct TestState {}
 
 impl TestState {
-    pub fn on_attach(&mut self, ctx: &mut gfx::context::Context) {
+    pub fn new(_ctx: &mut gfx::context::Context) -> Self {
+        Self {}
+    }
+}
+
+impl application::ApplicationState for TestState {
+    fn on_attach(&mut self, ctx: &mut gfx::context::Context) {
         let mut resources = ResourceDescriptionRegistry::new();
         let albedo = resources
             .add_image_attachment(
@@ -54,13 +60,7 @@ impl TestState {
             .expect("rendergraph should be valid and bound");
     }
 
-    pub fn new(_ctx: &mut gfx::context::Context) -> Self {
-        Self {}
-    }
-}
-
-impl application::ApplicationState for TestState {
-    fn update(&self, _ctx: &mut gfx::context::Context) -> miel::application::ControlFlow {
+    fn update(&mut self, _ctx: &mut gfx::context::Context) -> miel::application::ControlFlow {
         log::info!("update !");
         log::info!("...and exit.");
 

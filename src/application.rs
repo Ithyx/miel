@@ -23,7 +23,9 @@ pub enum ControlFlow {
 }
 
 pub trait ApplicationState {
-    fn update(&self, _ctx: &mut Context) -> ControlFlow {
+    fn on_attach(&mut self, _ctx: &mut Context) {}
+
+    fn update(&mut self, _ctx: &mut Context) -> ControlFlow {
         ControlFlow::Continue
     }
 }
@@ -93,8 +95,9 @@ impl winit::application::ApplicationHandler for Application {
                     Context::new(&window, &self.gfx_context_create_info)
                         .expect("context should be creatable"),
                 );
-
                 self.window = Some(window);
+
+                self.state.on_attach(self.gfx_context.as_mut().unwrap());
             }
             Err(e) => {
                 log::error!("failed to create window after resume event: {e}");
@@ -129,6 +132,8 @@ impl winit::application::ApplicationHandler for Application {
                     ControlFlow::Continue => (),
                     ControlFlow::SwitchState(new_state) => {
                         self.state = new_state;
+
+                        self.state.on_attach(self.gfx_context.as_mut().unwrap());
                     }
                     ControlFlow::Exit => event_loop.exit(),
                 }

@@ -18,7 +18,7 @@ fn get_version() -> u32 {
 
 struct StartupState {}
 impl application::ApplicationState for StartupState {
-    fn update(&self, ctx: &mut gfx::context::Context) -> application::ControlFlow {
+    fn update(&mut self, ctx: &mut gfx::context::Context) -> application::ControlFlow {
         let new_state = TestState::new(ctx);
         application::ControlFlow::SwitchState(Box::new(new_state))
     }
