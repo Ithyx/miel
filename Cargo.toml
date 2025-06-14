@@ -12,6 +12,8 @@ readme = "README.md"
 
 edition = "2024"
 
+include = ["/.readme", "/src", "README.md"]
+
 [dependencies]
 log = "0.4.27"
 thiserror = "2.0.12"
