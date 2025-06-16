@@ -153,7 +153,9 @@ impl CommandManager {
                         .command_buffers(&cmd_buffers)
                         .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
                         .wait_semaphores(&[swapchain.image_acquired_semaphore])
-                        .signal_semaphores(&[swapchain.render_semaphore])],
+                        .signal_semaphores(&[
+                            swapchain.render_semaphores[swapchain.current_image_index as usize]
+                        ])],
                     swapchain.present_fence,
                 )
             }
@@ -213,9 +215,11 @@ impl CommandManager {
 
 impl Drop for CommandManager {
     fn drop(&mut self) {
-        log::debug!("destroying command manager");
-
         let device = self.device_ref.lock();
+        log::debug!("Waiting for device to be idle before destroying command manager");
+        unsafe { device.device_wait_idle() }.expect("device should wait before shutting down");
+
+        log::debug!("destroying command manager");
         unsafe { device.destroy_fence(self.immediate_fence, None) };
         unsafe { device.destroy_command_pool(self.cmd_pool, None) };
     }

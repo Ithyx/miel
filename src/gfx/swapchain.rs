@@ -45,7 +45,7 @@ pub(crate) struct Swapchain {
     pub depth_images: Vec<Image>,
 
     pub image_acquired_semaphore: vk::Semaphore,
-    pub render_semaphore: vk::Semaphore,
+    pub render_semaphores: Vec<vk::Semaphore>,
     pub present_fence: vk::Fence,
 
     pub current_image_index: u32,
@@ -168,8 +168,13 @@ impl Swapchain {
         let semaphore_info = vk::SemaphoreCreateInfo::default();
         let present_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
             .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
-        let render_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
-            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
+        let render_semaphores = images
+            .iter()
+            .map(|_| {
+                unsafe { device.create_semaphore(&semaphore_info, None) }
+                    .map_err(SwapchainCreateError::RenderSyncObjectsCreation)
+            })
+            .collect::<Result<_, _>>()?;
 
         let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
         let present_fence = unsafe { device.create_fence(&fence_info, None) }
@@ -200,7 +205,7 @@ impl Swapchain {
             images,
             depth_images,
             image_acquired_semaphore: present_semaphore,
-            render_semaphore,
+            render_semaphores,
             present_fence,
             current_image_index: u32::MAX,
             device_ref,
@@ -282,7 +287,7 @@ impl Swapchain {
             self.loader.queue_present(
                 device.graphics_queue.handle,
                 &vk::PresentInfoKHR::default()
-                    .wait_semaphores(&[self.render_semaphore])
+                    .wait_semaphores(&[self.render_semaphores[self.current_image_index as usize]])
                     .swapchains(&[self.handle])
                     .image_indices(&[self.current_image_index]),
             )
@@ -301,7 +306,9 @@ impl Drop for Swapchain {
 
         log::debug!("destroying swapchain");
         unsafe { device.destroy_fence(self.present_fence, None) };
-        unsafe { device.destroy_semaphore(self.render_semaphore, None) };
+        for &semaphore in &self.render_semaphores {
+            unsafe { device.destroy_semaphore(semaphore, None) };
+        }
         unsafe { device.destroy_semaphore(self.image_acquired_semaphore, None) };
         for image in &self.images {
             unsafe { device.destroy_image_view(image.view, None) };

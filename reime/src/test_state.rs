@@ -69,7 +69,7 @@ impl application::ApplicationState for TestState {
     }
 
     fn update(&mut self, _ctx: &mut gfx::context::Context) -> miel::application::ControlFlow {
-        log::info!("update !");
+        // log::info!("update !");
         // log::info!("...and exit.");
 
         miel::application::ControlFlow::Continue
