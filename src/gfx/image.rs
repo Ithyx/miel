@@ -11,7 +11,7 @@ use super::{
     render_graph::resource::ImageAttachmentDescription,
 };
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ImageCreateInfo<'a> {
     pub image_info: vk::ImageCreateInfo<'a>,
     pub image_view_info: vk::ImageViewCreateInfo<'a>,
@@ -60,7 +60,7 @@ impl<'a> ImageCreateInfo<'a> {
         Self {
             image_info,
             image_view_info,
-            allocation_name: "depth image",
+            allocation_name: "swapchain depth image",
         }
     }
 
@@ -156,15 +156,14 @@ impl<'a> ImageCreateInfo<'a> {
     }
 }
 
-#[allow(dead_code)]
 pub struct Image {
-    pub(crate) handle: vk::Image,
-    pub(crate) allocation: Allocation,
-    pub(crate) view: vk::ImageView,
+    pub handle: vk::Image,
+    pub allocation: Allocation,
+    pub view: vk::ImageView,
 
-    pub(crate) layout: vk::ImageLayout,
-    pub(crate) format: vk::Format,
-    pub(crate) extent: vk::Extent3D,
+    pub layout: vk::ImageLayout,
+    pub format: vk::Format,
+    pub extent: vk::Extent3D,
 
     // useful for cubemaps
     layer_count: u32,

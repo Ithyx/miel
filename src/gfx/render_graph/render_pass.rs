@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use ash::vk;
 
-use crate::gfx;
-
-use super::resource::{ResourceAccessType, ResourceID};
+use super::resource::{ResourceAccessType, ResourceID, ResourceRegistry};
 
 #[derive(Debug, Default, Clone)]
 pub struct AttachmentInfo {
@@ -16,11 +14,11 @@ pub trait RenderPass {
     fn name(&self) -> &str;
     fn attachment_infos(&self) -> &AttachmentInfo;
 
-    fn record_commands(&mut self, cmd_buffer: &vk::CommandBuffer, ctx: &mut gfx::context::Context);
+    fn record_commands(&mut self, resources: &ResourceRegistry, cmd_buffer: &vk::CommandBuffer);
 }
 
 pub type SimpleCommandRecorder<UserData> =
-    Box<dyn FnMut(&mut UserData, &vk::CommandBuffer, &mut gfx::context::Context)>;
+    Box<dyn FnMut(&mut UserData, &ResourceRegistry, &vk::CommandBuffer)>;
 
 pub struct SimpleRenderPass<UserData> {
     pub name: String,
@@ -85,7 +83,7 @@ impl<UserData> RenderPass for SimpleRenderPass<UserData> {
         &self.attachment_infos
     }
 
-    fn record_commands(&mut self, cmd_buffer: &vk::CommandBuffer, ctx: &mut gfx::context::Context) {
-        (self.command_recorder)(&mut self.user_data, cmd_buffer, ctx);
+    fn record_commands(&mut self, resources: &ResourceRegistry, cmd_buffer: &vk::CommandBuffer) {
+        (self.command_recorder)(&mut self.user_data, resources, cmd_buffer);
     }
 }

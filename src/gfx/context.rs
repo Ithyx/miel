@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::{ffi::CString, u64};
 
 use ash::vk;
 use thiserror::Error;
@@ -11,13 +11,15 @@ use crate::utils::ThreadSafeRef;
 
 use super::{
     allocator::{Allocator, AllocatorCreateError},
-    commands::{CommandManager, CommandManagerCreateError},
+    commands::{CommandManager, CommandManagerCreateError, RenderCommandError},
     debug::{DUMCreationError, DUMessenger},
     device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
-    render_graph::{RenderGraph, RenderGraphCreateError, RenderGraphInfo},
+    render_graph::{RenderGraph, RenderGraphCreateError, RenderGraphInfo, RenderGraphRunError},
     surface::{DeviceSetupError, Surface, SurfaceCreateError},
-    swapchain::{Swapchain, SwapchainCreateError},
+    swapchain::{
+        NextImageAcquireError, NextImageState, PresentError, Swapchain, SwapchainCreateError,
+    },
 };
 
 pub struct ContextCreateInfo {
@@ -27,7 +29,7 @@ pub struct ContextCreateInfo {
 
 #[allow(dead_code)]
 pub struct Context {
-    pub(crate) render_graph: Option<RenderGraph>,
+    pub(crate) render_graph: RenderGraph,
 
     pub(crate) command_manager: CommandManager,
     pub(crate) swapchain: Swapchain,
@@ -84,6 +86,21 @@ pub enum RenderGraphBindError {
     RenderGraphCreation(#[from] RenderGraphCreateError),
 }
 
+#[derive(Debug, Error)]
+pub enum RenderError {
+    #[error("image acquisition failed")]
+    ImageAcquisition(#[from] NextImageAcquireError),
+
+    #[error("swapchain creation failed")]
+    SwapchainCreation(#[from] SwapchainCreateError),
+
+    #[error("render command execution failed")]
+    RenderCommand(#[from] RenderCommandError),
+
+    #[error("swapchain presentation failed")]
+    SwapchainPresent(#[from] PresentError),
+}
+
 impl Context {
     pub fn new(
         window: &Window,
@@ -118,7 +135,7 @@ impl Context {
             &device_ref.lock(),
         )?);
 
-        let swapchain = Swapchain::create(
+        let swapchain = Swapchain::new(
             &instance,
             device_ref.clone(),
             &surface,
@@ -132,7 +149,7 @@ impl Context {
         let command_manager = CommandManager::try_new(device_ref.clone())?;
 
         Ok(Self {
-            render_graph: None,
+            render_graph: RenderGraph::empty(),
 
             command_manager,
             swapchain,
@@ -150,7 +167,60 @@ impl Context {
 
     pub fn bind_rendergraph(&mut self, info: RenderGraphInfo) -> Result<(), RenderGraphBindError> {
         let new_rendergraph = RenderGraph::new(info, self)?;
-        self.render_graph = Some(new_rendergraph);
+        self.render_graph = new_rendergraph;
+
+        Ok(())
+    }
+
+    pub(crate) fn render_frame(&mut self) -> Result<(), RenderError> {
+        unsafe {
+            self.device_ref
+                .lock()
+                .wait_for_fences(&[self.swapchain.present_fence], true, u64::MAX)
+        }
+        .map_err(RenderCommandError::FenceSync)?;
+        unsafe {
+            self.device_ref
+                .lock()
+                .reset_fences(&[self.swapchain.present_fence])
+        }
+        .map_err(RenderCommandError::FenceReset)?;
+
+        match self.swapchain.next_image()? {
+            NextImageState::OutOfDate => {
+                log::warn!("swapchain is out of date, recreating");
+
+                // recreate and try again next frame
+                self.swapchain = Swapchain::new(
+                    &self.instance,
+                    self.device_ref.clone(),
+                    &self.surface,
+                    self.swapchain.extent,
+                    self.allocator_ref.clone(),
+                )?;
+
+                return Ok(());
+            }
+            NextImageState::Suboptimal => {
+                log::debug!("acquired image is suboptimal");
+            }
+            _ => (),
+        };
+
+        self.command_manager.render_command(
+            &mut self.swapchain,
+            |cmd_buffer, current_image_resources| {
+                self.render_graph.render(
+                    current_image_resources,
+                    cmd_buffer,
+                    self.device_ref.clone(),
+                )?;
+
+                Ok(())
+            },
+        )?;
+
+        self.swapchain.present()?;
 
         Ok(())
     }

@@ -163,6 +163,7 @@ pub enum RegistryCreateError {
     ImageAttachmentCreation(#[from] ImageAttachmentCreateError),
 }
 
+#[derive(Default)]
 pub struct ResourceRegistry {
     pub attachments: HashMap<ResourceID, ImageAttachment>,
 }

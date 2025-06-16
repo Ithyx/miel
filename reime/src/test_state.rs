@@ -8,7 +8,7 @@ use miel::{
             render_pass::SimpleRenderPass,
             resource::{
                 ImageAttachmentDescription, ResourceAccessType, ResourceDescriptionRegistry,
-                ResourceID,
+                ResourceID, ResourceRegistry,
             },
         },
     },
@@ -19,10 +19,18 @@ struct GBufferData {
     pub normal: ResourceID,
 }
 fn record_gbuffer(
-    _resource_ids: &mut GBufferData,
+    resource_ids: &mut GBufferData,
+    resources: &ResourceRegistry,
     _cmd_buffer: &vk::CommandBuffer,
-    _ctx: &mut gfx::context::Context,
 ) {
+    let albedo = resources.attachments.get(&resource_ids.albedo).unwrap();
+    let normal = resources.attachments.get(&resource_ids.normal).unwrap();
+
+    log::info!(
+        "found albedo and normal attachments: {:?}, {:?}",
+        albedo.image.handle,
+        normal.image.handle
+    );
 }
 
 pub struct TestState {}
@@ -62,8 +70,8 @@ impl application::ApplicationState for TestState {
 
     fn update(&mut self, _ctx: &mut gfx::context::Context) -> miel::application::ControlFlow {
         log::info!("update !");
-        log::info!("...and exit.");
+        // log::info!("...and exit.");
 
-        miel::application::ControlFlow::Exit
+        miel::application::ControlFlow::Continue
     }
 }

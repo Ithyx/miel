@@ -120,8 +120,18 @@ impl winit::application::ApplicationHandler for Application {
                 let window = self.window.as_ref().unwrap();
                 window.request_redraw();
 
-                let flow = match self.gfx_context.as_mut() {
-                    Some(context) => self.state.update(context),
+                let gfx_ctx = self.gfx_context.as_mut();
+                let flow = match gfx_ctx {
+                    Some(context) => {
+                        let flow = self.state.update(context);
+
+                        context
+                            .render_frame()
+                            .expect("frame should render correctly");
+                        // window.pre_present_notify();
+
+                        flow
+                    }
                     _ => {
                         log::warn!("no valid context for update state, skipping");
                         ControlFlow::Continue
@@ -137,7 +147,6 @@ impl winit::application::ApplicationHandler for Application {
                     }
                     ControlFlow::Exit => event_loop.exit(),
                 }
-                // window.pre_present_notify();
             }
 
             _ => (),
