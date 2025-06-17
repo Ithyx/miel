@@ -154,7 +154,7 @@ impl CommandManager {
                         .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
                         .wait_semaphores(&[swapchain.image_acquired_semaphore])
                         .signal_semaphores(&[
-                            swapchain.render_semaphores[swapchain.current_image_index as usize]
+                            swapchain.images[swapchain.current_image_index].render_semaphore
                         ])],
                     swapchain.present_fence,
                 )

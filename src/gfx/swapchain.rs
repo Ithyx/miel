@@ -35,20 +35,25 @@ pub struct ImageResources<'a> {
     depth_image: &'a mut Image,
 }
 
+pub(crate) struct ImageContext {
+    pub color_attachment: SwapchainImage,
+    pub depth_attachment: Image,
+
+    pub render_semaphore: vk::Semaphore,
+}
+
 #[allow(dead_code)]
 pub(crate) struct Swapchain {
     pub handle: vk::SwapchainKHR,
     pub loader: khr::swapchain::Device,
 
     pub extent: vk::Extent2D,
-    pub images: Vec<SwapchainImage>,
-    pub depth_images: Vec<Image>,
+    pub images: Vec<ImageContext>,
 
     pub image_acquired_semaphore: vk::Semaphore,
-    pub render_semaphores: Vec<vk::Semaphore>,
     pub present_fence: vk::Fence,
 
-    pub current_image_index: u32,
+    pub current_image_index: usize,
 
     // bookkeeping
     device_ref: ThreadSafeRef<Device>,
@@ -113,6 +118,16 @@ impl Swapchain {
             _ => surface.capabilities.current_extent,
         };
 
+        let semaphore_info = vk::SemaphoreCreateInfo::default();
+        let present_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
+            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
+
+        let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
+        let present_fence = unsafe { device.create_fence(&fence_info, None) }
+            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
+
+        drop(device);
+
         let create_info = vk::SwapchainCreateInfoKHR::default()
             .surface(surface.handle)
             .min_image_count(min_image_count)
@@ -150,37 +165,6 @@ impl Swapchain {
                     .base_array_layer(0)
                     .layer_count(1),
             );
-        let images = images_handles
-            .into_iter()
-            .map(|handle| {
-                let image_view_create_info = image_view_create_info.image(handle);
-                let view = unsafe { device.create_image_view(&image_view_create_info, None) }
-                    .map_err(SwapchainCreateError::ImageViewCreation)?;
-
-                Ok(SwapchainImage {
-                    handle,
-                    view,
-                    layout: vk::ImageLayout::UNDEFINED,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let semaphore_info = vk::SemaphoreCreateInfo::default();
-        let present_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
-            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
-        let render_semaphores = images
-            .iter()
-            .map(|_| {
-                unsafe { device.create_semaphore(&semaphore_info, None) }
-                    .map_err(SwapchainCreateError::RenderSyncObjectsCreation)
-            })
-            .collect::<Result<_, _>>()?;
-
-        let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
-        let present_fence = unsafe { device.create_fence(&fence_info, None) }
-            .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
-
-        drop(device);
 
         let depth_extent = vk::Extent3D {
             width: extent.width,
@@ -188,26 +172,47 @@ impl Swapchain {
             depth: 1,
         };
         let depth_image_info = ImageCreateInfo::swapchain_depth_image(depth_extent);
-        let depth_images = images
-            .iter()
-            .map(|_| {
-                depth_image_info
+
+        let images = images_handles
+            .into_iter()
+            .map(|handle| {
+                let device = device_ref.lock();
+                let render_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
+                    .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
+
+                let image_view_create_info = image_view_create_info.image(handle);
+                let view = unsafe { device.create_image_view(&image_view_create_info, None) }
+                    .map_err(SwapchainCreateError::ImageViewCreation)?;
+
+                let color_attachment = SwapchainImage {
+                    handle,
+                    view,
+                    layout: vk::ImageLayout::UNDEFINED,
+                };
+
+                drop(device);
+
+                let depth_attachment = depth_image_info
                     .clone()
                     .build_from_base_structs(device_ref.clone(), allocator_ref.clone())
-                    .map_err(SwapchainCreateError::DepthImageBuilding)
+                    .map_err(SwapchainCreateError::DepthImageBuilding)?;
+
+                Ok(ImageContext {
+                    color_attachment,
+                    depth_attachment,
+                    render_semaphore,
+                })
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             handle,
             loader,
             extent,
             images,
-            depth_images,
             image_acquired_semaphore: present_semaphore,
-            render_semaphores,
             present_fence,
-            current_image_index: u32::MAX,
+            current_image_index: usize::MAX,
             device_ref,
         })
     }
@@ -223,7 +228,7 @@ impl Swapchain {
         } {
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => Ok(NextImageState::OutOfDate),
             Ok((index, is_suboptimal)) => {
-                self.current_image_index = index;
+                self.current_image_index = index as usize;
 
                 match is_suboptimal {
                     false => Ok(NextImageState::Ok),
@@ -235,9 +240,10 @@ impl Swapchain {
     }
 
     pub fn current_image_resources(&mut self) -> ImageResources {
+        let image = self.images.get_mut(self.current_image_index).unwrap();
         ImageResources {
-            color_image: &mut self.images[self.current_image_index as usize],
-            depth_image: &mut self.depth_images[self.current_image_index as usize],
+            color_image: &mut image.color_attachment,
+            depth_image: &mut image.depth_attachment,
         }
     }
 
@@ -287,9 +293,9 @@ impl Swapchain {
             self.loader.queue_present(
                 device.graphics_queue.handle,
                 &vk::PresentInfoKHR::default()
-                    .wait_semaphores(&[self.render_semaphores[self.current_image_index as usize]])
+                    .wait_semaphores(&[self.images[self.current_image_index].render_semaphore])
                     .swapchains(&[self.handle])
-                    .image_indices(&[self.current_image_index]),
+                    .image_indices(&[self.current_image_index as u32]),
             )
         }
         .map_err(PresentError::Present)?;
@@ -306,12 +312,10 @@ impl Drop for Swapchain {
 
         log::debug!("destroying swapchain");
         unsafe { device.destroy_fence(self.present_fence, None) };
-        for &semaphore in &self.render_semaphores {
-            unsafe { device.destroy_semaphore(semaphore, None) };
-        }
         unsafe { device.destroy_semaphore(self.image_acquired_semaphore, None) };
         for image in &self.images {
-            unsafe { device.destroy_image_view(image.view, None) };
+            unsafe { device.destroy_semaphore(image.render_semaphore, None) };
+            unsafe { device.destroy_image_view(image.color_attachment.view, None) };
         }
         unsafe { self.loader.destroy_swapchain(self.handle, None) };
     }

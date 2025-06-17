@@ -137,7 +137,6 @@ impl<'a> ImageCreateInfo<'a> {
         let view = unsafe { device.create_image_view(&self.image_view_info, None) }
             .map_err(ImageBuildError::ImageViewCreation)?;
 
-        drop(allocator);
         drop(device);
 
         Ok(Image {
