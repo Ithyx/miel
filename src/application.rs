@@ -126,9 +126,8 @@ impl winit::application::ApplicationHandler for Application {
                         let flow = self.state.update(context);
 
                         context
-                            .render_frame()
+                            .render_frame(window)
                             .expect("frame should render correctly");
-                        // window.pre_present_notify();
 
                         flow
                     }

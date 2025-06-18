@@ -15,7 +15,7 @@ use super::{
     debug::{DUMCreationError, DUMessenger},
     device::{Device, DeviceCreateError, PhysicalDevice, PhysicalDeviceSelectError},
     instance::{Instance, InstanceCreateError},
-    render_graph::{RenderGraph, RenderGraphCreateError, RenderGraphInfo, RenderGraphRunError},
+    render_graph::{RenderGraph, RenderGraphCreateError, RenderGraphInfo},
     surface::{DeviceSetupError, Surface, SurfaceCreateError},
     swapchain::{
         NextImageAcquireError, NextImageState, PresentError, Swapchain, SwapchainCreateError,
@@ -172,7 +172,7 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn render_frame(&mut self) -> Result<(), RenderError> {
+    pub(crate) fn render_frame(&mut self, window: &Window) -> Result<(), RenderError> {
         unsafe {
             self.device_ref
                 .lock()
@@ -219,6 +219,8 @@ impl Context {
                 Ok(())
             },
         )?;
+
+        window.pre_present_notify();
 
         self.swapchain.present()?;
 
