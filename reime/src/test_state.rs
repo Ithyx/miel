@@ -12,6 +12,7 @@ use miel::{
                 ResourceID, ResourceRegistry,
             },
         },
+        swapchain::ImageResources,
     },
     utils::ThreadSafeRwRef,
 };
@@ -23,6 +24,7 @@ struct GBufferData {
 fn record_gbuffer(
     resource_ids: &mut GBufferData,
     resources: &ResourceRegistry,
+    swapchain_res: Option<&ImageResources>,
     _cmd_buffer: &vk::CommandBuffer,
     _device_ref: ThreadSafeRwRef<Device>,
 ) {
@@ -34,6 +36,14 @@ fn record_gbuffer(
         albedo.image.handle,
         normal.image.handle
     );
+
+    swapchain_res.inspect(|resources| {
+        log::info!(
+            "\talso got swapchain resources: {:?}, {:?}",
+            resources.color_image.handle,
+            resources.depth_image.handle
+        )
+    });
 }
 
 pub struct TestState {}
@@ -64,6 +74,7 @@ impl application::ApplicationState for TestState {
             SimpleRenderPass::new("g-buffer", gbuffer_data)
                 .add_color_attachment(albedo, ResourceAccessType::WriteOnly)
                 .add_color_attachment(normal, ResourceAccessType::WriteOnly)
+                .request_swapchain_resources(ResourceAccessType::WriteOnly)
                 .set_command_recorder(Box::new(record_gbuffer)),
         ));
 

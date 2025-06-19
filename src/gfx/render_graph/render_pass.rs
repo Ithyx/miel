@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use ash::vk;
 
-use crate::{gfx::device::Device, utils::ThreadSafeRwRef};
+use crate::{
+    gfx::{device::Device, swapchain::ImageResources},
+    utils::ThreadSafeRwRef,
+};
 
 use super::resource::{ResourceAccessType, ResourceID, ResourceRegistry};
 
@@ -10,6 +13,8 @@ use super::resource::{ResourceAccessType, ResourceID, ResourceRegistry};
 pub struct AttachmentInfo {
     pub color_attachments: HashMap<ResourceID, ResourceAccessType>,
     pub depth_attachments: HashMap<ResourceID, ResourceAccessType>,
+
+    pub swapchain_resources: Option<ResourceAccessType>,
 }
 
 pub trait RenderPass {
@@ -19,13 +24,21 @@ pub trait RenderPass {
     fn record_commands(
         &mut self,
         resources: &ResourceRegistry,
+        swapchain_res: Option<&ImageResources>,
         cmd_buffer: &vk::CommandBuffer,
         device_ref: ThreadSafeRwRef<Device>,
     );
 }
 
-pub type SimpleCommandRecorder<UserData> =
-    Box<dyn FnMut(&mut UserData, &ResourceRegistry, &vk::CommandBuffer, ThreadSafeRwRef<Device>)>;
+pub type SimpleCommandRecorder<UserData> = Box<
+    dyn FnMut(
+        &mut UserData,
+        &ResourceRegistry,
+        Option<&ImageResources>,
+        &vk::CommandBuffer,
+        ThreadSafeRwRef<Device>,
+    ),
+>;
 
 pub struct SimpleRenderPass<UserData> {
     pub name: String,
@@ -41,7 +54,7 @@ impl<UserData> SimpleRenderPass<UserData> {
             name: name.to_owned(),
             user_data,
             attachment_infos: AttachmentInfo::default(),
-            command_recorder: Box::new(|_, _, _, _| {}),
+            command_recorder: Box::new(|_, _, _, _, _| {}),
         }
     }
 
@@ -72,6 +85,11 @@ impl<UserData> SimpleRenderPass<UserData> {
         self
     }
 
+    pub fn request_swapchain_resources(mut self, access_type: ResourceAccessType) -> Self {
+        self.attachment_infos.swapchain_resources = Some(access_type);
+        self
+    }
+
     pub fn set_command_recorder(
         mut self,
         command_recorder: SimpleCommandRecorder<UserData>,
@@ -93,9 +111,16 @@ impl<UserData> RenderPass for SimpleRenderPass<UserData> {
     fn record_commands(
         &mut self,
         resources: &ResourceRegistry,
+        swapchain_res: Option<&ImageResources>,
         cmd_buffer: &vk::CommandBuffer,
         device_ref: ThreadSafeRwRef<Device>,
     ) {
-        (self.command_recorder)(&mut self.user_data, resources, cmd_buffer, device_ref);
+        (self.command_recorder)(
+            &mut self.user_data,
+            resources,
+            swapchain_res,
+            cmd_buffer,
+            device_ref,
+        );
     }
 }

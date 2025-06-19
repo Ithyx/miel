@@ -21,15 +21,15 @@ pub(crate) enum NextImageState {
     OutOfDate,
 }
 
-pub(crate) struct SwapchainImage {
+pub struct SwapchainImage {
     pub handle: vk::Image,
     pub view: vk::ImageView,
     pub layout: vk::ImageLayout,
 }
 
 pub struct ImageResources<'a> {
-    color_image: &'a mut SwapchainImage,
-    _depth_image: &'a mut Image,
+    pub color_image: &'a mut SwapchainImage,
+    pub depth_image: &'a mut Image,
 }
 
 pub(crate) struct ImageContext {
@@ -234,7 +234,7 @@ impl Swapchain {
         let image = self.images.get_mut(self.current_image_index).unwrap();
         ImageResources {
             color_image: &mut image.color_attachment,
-            _depth_image: &mut image.depth_attachment,
+            depth_image: &mut image.depth_attachment,
         }
     }
 

@@ -209,11 +209,8 @@ impl Context {
         self.command_manager.render_command(
             &mut self.swapchain,
             |cmd_buffer, current_image_resources| {
-                self.render_graph.render(
-                    current_image_resources,
-                    cmd_buffer,
-                    &self.device_ref,
-                )?;
+                self.render_graph
+                    .render(current_image_resources, cmd_buffer, &self.device_ref)?;
 
                 Ok(())
             },

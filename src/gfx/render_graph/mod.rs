@@ -67,14 +67,23 @@ impl RenderGraph {
 
     pub(crate) fn render(
         &mut self,
-        mut _swapchain_resources: swapchain::ImageResources,
+        swapchain_resources: swapchain::ImageResources,
         cmd_buffer: &vk::CommandBuffer,
         device_ref: &ThreadSafeRwRef<Device>,
     ) -> Result<(), RenderGraphRunError> {
         for render_pass in &mut self.render_passes {
+            let attachment_info = render_pass.attachment_infos();
+            let requested_sc_resources = attachment_info
+                .swapchain_resources
+                .map(|_| &swapchain_resources);
             // todo: prepare input resources
 
-            render_pass.record_commands(&self.resources, cmd_buffer, device_ref.clone());
+            render_pass.record_commands(
+                &self.resources,
+                requested_sc_resources,
+                cmd_buffer,
+                device_ref.clone(),
+            );
         }
 
         Ok(())
