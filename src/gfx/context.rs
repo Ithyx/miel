@@ -212,7 +212,7 @@ impl Context {
                 self.render_graph.render(
                     current_image_resources,
                     cmd_buffer,
-                    self.device_ref.clone(),
+                    &self.device_ref,
                 )?;
 
                 Ok(())

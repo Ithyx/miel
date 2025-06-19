@@ -27,7 +27,7 @@ fn device_type_to_str(device_type: vk::PhysicalDeviceType) -> &'static str {
     }
 }
 
-pub(crate) struct PhysicalDevice {
+pub struct PhysicalDevice {
     pub handle: vk::PhysicalDevice,
     pub properties: vk::PhysicalDeviceProperties,
     pub graphics_qf_index: u32,
@@ -46,7 +46,7 @@ pub enum PhysicalDeviceSelectError {
 }
 
 impl PhysicalDevice {
-    pub fn select(
+    pub(crate) fn select(
         instance: &Instance,
         minimum_vk_version: u32,
         target_surface: &Surface,
@@ -230,7 +230,7 @@ impl PhysicalDevice {
     }
 }
 
-pub(crate) struct DeviceQueue {
+pub struct DeviceQueue {
     pub handle: vk::Queue,
     pub family_index: u32,
 }
@@ -243,7 +243,7 @@ impl Deref for DeviceQueue {
     }
 }
 
-pub(crate) struct Device {
+pub struct Device {
     pub loader: ash::Device,
     pub graphics_queue: DeviceQueue,
 }
@@ -263,7 +263,7 @@ pub enum DeviceCreateError {
 }
 
 impl Device {
-    pub fn create(
+    pub(crate) fn create(
         instance: &Instance,
         physical_device: &PhysicalDevice,
     ) -> Result<Self, DeviceCreateError> {

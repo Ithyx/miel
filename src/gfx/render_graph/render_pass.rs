@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use ash::vk;
 
+use crate::{gfx::device::Device, utils::ThreadSafeRwRef};
+
 use super::resource::{ResourceAccessType, ResourceID, ResourceRegistry};
 
 #[derive(Debug, Default, Clone)]
@@ -14,11 +16,16 @@ pub trait RenderPass {
     fn name(&self) -> &str;
     fn attachment_infos(&self) -> &AttachmentInfo;
 
-    fn record_commands(&mut self, resources: &ResourceRegistry, cmd_buffer: &vk::CommandBuffer);
+    fn record_commands(
+        &mut self,
+        resources: &ResourceRegistry,
+        cmd_buffer: &vk::CommandBuffer,
+        device_ref: ThreadSafeRwRef<Device>,
+    );
 }
 
 pub type SimpleCommandRecorder<UserData> =
-    Box<dyn FnMut(&mut UserData, &ResourceRegistry, &vk::CommandBuffer)>;
+    Box<dyn FnMut(&mut UserData, &ResourceRegistry, &vk::CommandBuffer, ThreadSafeRwRef<Device>)>;
 
 pub struct SimpleRenderPass<UserData> {
     pub name: String,
@@ -34,7 +41,7 @@ impl<UserData> SimpleRenderPass<UserData> {
             name: name.to_owned(),
             user_data,
             attachment_infos: AttachmentInfo::default(),
-            command_recorder: Box::new(|_, _, _| {}),
+            command_recorder: Box::new(|_, _, _, _| {}),
         }
     }
 
@@ -83,7 +90,12 @@ impl<UserData> RenderPass for SimpleRenderPass<UserData> {
         &self.attachment_infos
     }
 
-    fn record_commands(&mut self, resources: &ResourceRegistry, cmd_buffer: &vk::CommandBuffer) {
-        (self.command_recorder)(&mut self.user_data, resources, cmd_buffer);
+    fn record_commands(
+        &mut self,
+        resources: &ResourceRegistry,
+        cmd_buffer: &vk::CommandBuffer,
+        device_ref: ThreadSafeRwRef<Device>,
+    ) {
+        (self.command_recorder)(&mut self.user_data, resources, cmd_buffer, device_ref);
     }
 }

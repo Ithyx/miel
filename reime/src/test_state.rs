@@ -3,6 +3,7 @@ use miel::{
     ash::vk,
     gfx::{
         self,
+        device::Device,
         render_graph::{
             RenderGraphInfo,
             render_pass::SimpleRenderPass,
@@ -12,6 +13,7 @@ use miel::{
             },
         },
     },
+    utils::ThreadSafeRwRef,
 };
 
 struct GBufferData {
@@ -22,6 +24,7 @@ fn record_gbuffer(
     resource_ids: &mut GBufferData,
     resources: &ResourceRegistry,
     _cmd_buffer: &vk::CommandBuffer,
+    _device_ref: ThreadSafeRwRef<Device>,
 ) {
     let albedo = resources.attachments.get(&resource_ids.albedo).unwrap();
     let normal = resources.attachments.get(&resource_ids.normal).unwrap();

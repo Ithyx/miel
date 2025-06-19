@@ -69,12 +69,12 @@ impl RenderGraph {
         &mut self,
         mut _swapchain_resources: swapchain::ImageResources,
         cmd_buffer: &vk::CommandBuffer,
-        _device_ref: ThreadSafeRwRef<Device>,
+        device_ref: &ThreadSafeRwRef<Device>,
     ) -> Result<(), RenderGraphRunError> {
         for render_pass in &mut self.render_passes {
             // todo: prepare input resources
 
-            render_pass.record_commands(&self.resources, cmd_buffer);
+            render_pass.record_commands(&self.resources, cmd_buffer, device_ref.clone());
         }
 
         Ok(())
