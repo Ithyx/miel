@@ -98,14 +98,12 @@ impl CommandManager {
         let immediate_fence = unsafe { device.create_fence(&fence_info, None) }
             .map_err(CommandManagerCreateError::FenceCreation)?;
 
-        drop(device);
-
         Ok(Self {
             cmd_pool,
             rendering_cmd_buffer: cmd_buffers[0],
             immediate_cmd_buffer: cmd_buffers[1],
             immediate_fence,
-            device_ref,
+            device_ref: device_ref.clone(),
         })
     }
 

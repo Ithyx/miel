@@ -122,8 +122,6 @@ impl Swapchain {
         let present_fence = unsafe { device.create_fence(&fence_info, None) }
             .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
 
-        drop(device);
-
         let create_info = vk::SwapchainCreateInfoKHR::default()
             .surface(surface.handle)
             .min_image_count(min_image_count)
@@ -172,7 +170,6 @@ impl Swapchain {
         let images = images_handles
             .into_iter()
             .map(|handle| {
-                let device = device_ref.read();
                 let render_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
                     .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
 
@@ -185,8 +182,6 @@ impl Swapchain {
                     view,
                     layout: vk::ImageLayout::UNDEFINED,
                 };
-
-                drop(device);
 
                 let depth_attachment = depth_image_info
                     .clone()
@@ -209,7 +204,7 @@ impl Swapchain {
             image_acquired_semaphore: present_semaphore,
             present_fence,
             current_image_index: usize::MAX,
-            device_ref,
+            device_ref: device_ref.clone(),
         })
     }
 

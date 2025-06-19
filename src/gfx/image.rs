@@ -137,8 +137,6 @@ impl<'a> ImageCreateInfo<'a> {
         let view = unsafe { device.create_image_view(&self.image_view_info, None) }
             .map_err(ImageBuildError::ImageViewCreation)?;
 
-        drop(device);
-
         Ok(Image {
             handle,
             _allocation,
@@ -150,7 +148,7 @@ impl<'a> ImageCreateInfo<'a> {
 
             _layer_count: self.image_info.array_layers,
 
-            device_ref,
+            device_ref: device_ref.clone(),
         })
     }
 }
