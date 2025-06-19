@@ -9,7 +9,7 @@ use super::{
     swapchain::{ImageResources, Swapchain},
 };
 
-pub(crate) struct CommandManager {
+pub struct CommandManager {
     pub(crate) cmd_pool: vk::CommandPool,
 
     pub(crate) rendering_cmd_buffer: vk::CommandBuffer,
@@ -165,7 +165,7 @@ impl CommandManager {
         Ok(())
     }
 
-    pub(crate) fn immediate_command<Fn, ReturnType>(
+    pub fn immediate_command<Fn, ReturnType>(
         &self,
         f: Fn,
     ) -> Result<ReturnType, ImmediateCommandError>

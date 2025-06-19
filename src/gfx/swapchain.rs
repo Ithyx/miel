@@ -1,5 +1,3 @@
-use std::{u64, usize};
-
 use ash::{
     khr,
     vk::{self, ImageAspectFlags},
@@ -23,7 +21,6 @@ pub(crate) enum NextImageState {
     OutOfDate,
 }
 
-#[allow(dead_code)]
 pub(crate) struct SwapchainImage {
     pub handle: vk::Image,
     pub view: vk::ImageView,
@@ -32,7 +29,7 @@ pub(crate) struct SwapchainImage {
 
 pub struct ImageResources<'a> {
     color_image: &'a mut SwapchainImage,
-    depth_image: &'a mut Image,
+    _depth_image: &'a mut Image,
 }
 
 pub(crate) struct ImageContext {
@@ -42,7 +39,6 @@ pub(crate) struct ImageContext {
     pub render_semaphore: vk::Semaphore,
 }
 
-#[allow(dead_code)]
 pub(crate) struct Swapchain {
     pub handle: vk::SwapchainKHR,
     pub loader: khr::swapchain::Device,
@@ -243,7 +239,7 @@ impl Swapchain {
         let image = self.images.get_mut(self.current_image_index).unwrap();
         ImageResources {
             color_image: &mut image.color_attachment,
-            depth_image: &mut image.depth_attachment,
+            _depth_image: &mut image.depth_attachment,
         }
     }
 

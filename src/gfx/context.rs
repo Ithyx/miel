@@ -1,4 +1,4 @@
-use std::{ffi::CString, u64};
+use std::ffi::CString;
 
 use ash::vk;
 use thiserror::Error;
@@ -27,7 +27,6 @@ pub struct ContextCreateInfo {
     pub application_version: u32,
 }
 
-#[allow(dead_code)]
 pub struct Context {
     pub(crate) render_graph: RenderGraph,
 
@@ -37,11 +36,11 @@ pub struct Context {
     pub(crate) allocator_ref: ThreadSafeRef<Allocator>,
 
     pub(crate) device_ref: ThreadSafeRef<Device>,
-    pub(crate) physical_device: PhysicalDevice,
+    pub(crate) _physical_device: PhysicalDevice,
     pub(crate) surface: Surface,
-    pub(crate) du_messenger: Option<DUMessenger>,
+    pub(crate) _du_messenger: Option<DUMessenger>,
     pub(crate) instance: Instance,
-    pub(crate) entry: ash::Entry,
+    pub(crate) _entry: ash::Entry,
 }
 
 #[derive(Debug, Error)]
@@ -157,11 +156,11 @@ impl Context {
             allocator_ref,
 
             device_ref,
-            physical_device,
+            _physical_device: physical_device,
             surface,
-            du_messenger,
+            _du_messenger: du_messenger,
             instance,
-            entry,
+            _entry: entry,
         })
     }
 

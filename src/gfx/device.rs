@@ -230,7 +230,6 @@ impl PhysicalDevice {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) struct DeviceQueue {
     pub handle: vk::Queue,
     pub family_index: u32,
@@ -244,7 +243,6 @@ impl Deref for DeviceQueue {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) struct Device {
     pub loader: ash::Device,
     pub graphics_queue: DeviceQueue,

@@ -43,10 +43,7 @@ pub enum RenderGraphCreateError {
 }
 
 #[derive(Debug, Error)]
-pub enum RenderGraphRunError {
-    #[error("resource registry creation failed")]
-    ResourceCreation(#[from] RegistryCreateError),
-}
+pub enum RenderGraphRunError {}
 
 impl RenderGraph {
     pub(crate) fn empty() -> Self {
@@ -69,12 +66,16 @@ impl RenderGraph {
     }
 
     pub(crate) fn render(
-        &self,
+        &mut self,
         mut _swapchain_resources: swapchain::ImageResources,
         cmd_buffer: &vk::CommandBuffer,
-        device_ref: ThreadSafeRef<Device>,
+        _device_ref: ThreadSafeRef<Device>,
     ) -> Result<(), RenderGraphRunError> {
-        // actually render here
+        for render_pass in &mut self.render_passes {
+            // todo: prepare input resources
+
+            render_pass.record_commands(&self.resources, cmd_buffer);
+        }
 
         Ok(())
     }

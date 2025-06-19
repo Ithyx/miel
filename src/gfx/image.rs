@@ -128,9 +128,9 @@ impl<'a> ImageCreateInfo<'a> {
             linear: false,
             allocation_scheme: gpu_allocator::vulkan::AllocationScheme::DedicatedImage(handle),
         };
-        let allocation = allocator.allocate(&allocation_info, allocator_ref.clone())?;
+        let _allocation = allocator.allocate(&allocation_info, allocator_ref.clone())?;
 
-        unsafe { device.bind_image_memory(handle, allocation.memory(), allocation.offset()) }
+        unsafe { device.bind_image_memory(handle, _allocation.memory(), _allocation.offset()) }
             .map_err(ImageBuildError::MemoryBind)?;
 
         self.image_view_info.image = handle;
@@ -141,14 +141,14 @@ impl<'a> ImageCreateInfo<'a> {
 
         Ok(Image {
             handle,
-            allocation,
+            _allocation,
             view,
 
             layout: self.image_info.initial_layout,
             format: self.image_info.format,
             extent: self.image_info.extent,
 
-            layer_count: self.image_info.array_layers,
+            _layer_count: self.image_info.array_layers,
 
             device_ref,
         })
@@ -157,7 +157,7 @@ impl<'a> ImageCreateInfo<'a> {
 
 pub struct Image {
     pub handle: vk::Image,
-    pub allocation: Allocation,
+    pub(crate) _allocation: Allocation,
     pub view: vk::ImageView,
 
     pub layout: vk::ImageLayout,
@@ -165,7 +165,7 @@ pub struct Image {
     pub extent: vk::Extent3D,
 
     // useful for cubemaps
-    layer_count: u32,
+    _layer_count: u32,
 
     // bookkeeping
     device_ref: ThreadSafeRef<Device>,
