@@ -1,7 +1,7 @@
 use ash::vk::{self, CommandBufferLevel};
 use thiserror::Error;
 
-use crate::utils::ThreadSafeRef;
+use crate::utils::ThreadSafeRwRef;
 
 use super::{
     device::Device,
@@ -18,7 +18,7 @@ pub struct CommandManager {
     pub(crate) immediate_fence: vk::Fence,
 
     //bookkeeping
-    device_ref: ThreadSafeRef<Device>,
+    device_ref: ThreadSafeRwRef<Device>,
 }
 
 #[derive(Debug, Error)]
@@ -77,9 +77,9 @@ pub enum RenderCommandError {
 
 impl CommandManager {
     pub(crate) fn try_new(
-        device_ref: ThreadSafeRef<Device>,
+        device_ref: ThreadSafeRwRef<Device>,
     ) -> Result<Self, CommandManagerCreateError> {
-        let device = device_ref.lock();
+        let device = device_ref.read();
 
         let cmd_pool_info = vk::CommandPoolCreateInfo::default()
             .queue_family_index(device.graphics_queue.family_index)
@@ -118,7 +118,7 @@ impl CommandManager {
         Fn: FnOnce(&vk::CommandBuffer, ImageResources) -> Result<(), RenderGraphRunError>,
     {
         {
-            let device = self.device_ref.lock();
+            let device = self.device_ref.read();
 
             unsafe {
                 device.reset_command_buffer(
@@ -141,7 +141,7 @@ impl CommandManager {
         swapchain.ensure_presentable(&self.rendering_cmd_buffer);
 
         {
-            let device = self.device_ref.lock();
+            let device = self.device_ref.read();
             unsafe { device.end_command_buffer(self.rendering_cmd_buffer) }
                 .map_err(RenderCommandError::CommandBufferEnd)?;
 
@@ -173,7 +173,7 @@ impl CommandManager {
         Fn: FnOnce(&vk::CommandBuffer) -> ReturnType,
     {
         {
-            let device = self.device_ref.lock();
+            let device = self.device_ref.read();
             let begin_info = vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
             unsafe { device.begin_command_buffer(self.immediate_cmd_buffer, &begin_info) }
@@ -183,7 +183,7 @@ impl CommandManager {
         let result = f(&self.immediate_cmd_buffer);
 
         {
-            let device = self.device_ref.lock();
+            let device = self.device_ref.read();
             let cmd_buffers = [self.immediate_cmd_buffer];
             let submit_info = vk::SubmitInfo::default().command_buffers(&cmd_buffers);
             unsafe {
@@ -215,7 +215,7 @@ impl CommandManager {
 
 impl Drop for CommandManager {
     fn drop(&mut self) {
-        let device = self.device_ref.lock();
+        let device = self.device_ref.read();
         log::debug!("Waiting for device to be idle before destroying command manager");
         unsafe { device.device_wait_idle() }.expect("device should wait before shutting down");
 

@@ -4,7 +4,7 @@ use ash::{
 };
 use thiserror::Error;
 
-use crate::utils::ThreadSafeRef;
+use crate::utils::{ThreadSafeRef, ThreadSafeRwRef};
 
 use super::{
     allocator::Allocator,
@@ -52,7 +52,7 @@ pub(crate) struct Swapchain {
     pub current_image_index: usize,
 
     // bookkeeping
-    device_ref: ThreadSafeRef<Device>,
+    device_ref: ThreadSafeRwRef<Device>,
 }
 
 #[derive(Debug, Error)]
@@ -91,12 +91,12 @@ pub enum PresentError {
 impl Swapchain {
     pub fn new(
         instance: &Instance,
-        device_ref: ThreadSafeRef<Device>,
+        device_ref: ThreadSafeRwRef<Device>,
         surface: &Surface,
         suggested_size: vk::Extent2D,
         allocator_ref: ThreadSafeRef<Allocator>,
     ) -> Result<Self, SwapchainCreateError> {
-        let device = device_ref.lock();
+        let device = device_ref.read();
         let loader = khr::swapchain::Device::new(instance, &device);
 
         let mut min_image_count = surface.capabilities.min_image_count + 1;
@@ -172,7 +172,7 @@ impl Swapchain {
         let images = images_handles
             .into_iter()
             .map(|handle| {
-                let device = device_ref.lock();
+                let device = device_ref.read();
                 let render_semaphore = unsafe { device.create_semaphore(&semaphore_info, None) }
                     .map_err(SwapchainCreateError::RenderSyncObjectsCreation)?;
 
@@ -268,7 +268,7 @@ impl Swapchain {
             current_image_res.color_image.layout = vk::ImageLayout::PRESENT_SRC_KHR;
         }
 
-        let device = self.device_ref.lock();
+        let device = self.device_ref.read();
         unsafe {
             device.cmd_pipeline_barrier(
                 cmd_buffer,
@@ -283,7 +283,7 @@ impl Swapchain {
     }
 
     pub fn present(&self) -> Result<(), PresentError> {
-        let device = self.device_ref.lock();
+        let device = self.device_ref.read();
 
         unsafe {
             self.loader.queue_present(
@@ -302,7 +302,7 @@ impl Swapchain {
 
 impl Drop for Swapchain {
     fn drop(&mut self) {
-        let device = self.device_ref.lock();
+        let device = self.device_ref.read();
         log::debug!("Waiting for device to be idle before destroying swapchain");
         unsafe { device.device_wait_idle() }.expect("device should wait before shutting down");
 

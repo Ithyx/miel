@@ -2,7 +2,7 @@ use ash::vk;
 use gpu_allocator::AllocationError;
 use thiserror::Error;
 
-use crate::utils::ThreadSafeRef;
+use crate::utils::{ThreadSafeRef, ThreadSafeRwRef};
 
 use super::{
     allocator::{Allocation, Allocator},
@@ -111,10 +111,10 @@ impl<'a> ImageCreateInfo<'a> {
     /// code.
     pub(crate) fn build_from_base_structs(
         mut self,
-        device_ref: ThreadSafeRef<Device>,
+        device_ref: ThreadSafeRwRef<Device>,
         allocator_ref: ThreadSafeRef<Allocator>,
     ) -> Result<Image, ImageBuildError> {
-        let device = device_ref.lock();
+        let device = device_ref.read();
         let mut allocator = allocator_ref.lock();
 
         let handle = unsafe { device.create_image(&self.image_info, None) }
@@ -168,12 +168,12 @@ pub struct Image {
     _layer_count: u32,
 
     // bookkeeping
-    device_ref: ThreadSafeRef<Device>,
+    device_ref: ThreadSafeRwRef<Device>,
 }
 
 impl Drop for Image {
     fn drop(&mut self) {
-        let device = self.device_ref.lock();
+        let device = self.device_ref.read();
 
         unsafe { device.destroy_image_view(self.view, None) };
         unsafe { device.destroy_image(self.handle, None) };

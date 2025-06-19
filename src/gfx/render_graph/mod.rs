@@ -6,7 +6,7 @@ use render_pass::RenderPass;
 use resource::{RegistryCreateError, ResourceDescriptionRegistry, ResourceRegistry};
 use thiserror::Error;
 
-use crate::utils::ThreadSafeRef;
+use crate::utils::ThreadSafeRwRef;
 
 use super::{context::Context, device::Device, swapchain};
 
@@ -69,7 +69,7 @@ impl RenderGraph {
         &mut self,
         mut _swapchain_resources: swapchain::ImageResources,
         cmd_buffer: &vk::CommandBuffer,
-        _device_ref: ThreadSafeRef<Device>,
+        _device_ref: ThreadSafeRwRef<Device>,
     ) -> Result<(), RenderGraphRunError> {
         for render_pass in &mut self.render_passes {
             // todo: prepare input resources

@@ -7,7 +7,7 @@ use winit::{
     window::Window,
 };
 
-use crate::utils::ThreadSafeRef;
+use crate::utils::{ThreadSafeRef, ThreadSafeRwRef};
 
 use super::{
     allocator::{Allocator, AllocatorCreateError},
@@ -35,7 +35,7 @@ pub struct Context {
 
     pub(crate) allocator_ref: ThreadSafeRef<Allocator>,
 
-    pub(crate) device_ref: ThreadSafeRef<Device>,
+    pub(crate) device_ref: ThreadSafeRwRef<Device>,
     pub(crate) _physical_device: PhysicalDevice,
     pub(crate) surface: Surface,
     pub(crate) _du_messenger: Option<DUMessenger>,
@@ -127,11 +127,11 @@ impl Context {
 
         // These reesources need to be stored as shared reeferences as they are often needed for
         // destruction anbd thus have to be stored in every sub-resource.
-        let device_ref = ThreadSafeRef::new(Device::create(&instance, &physical_device)?);
+        let device_ref = ThreadSafeRwRef::new(Device::create(&instance, &physical_device)?);
         let allocator_ref = ThreadSafeRef::new(Allocator::create(
             &instance,
             &physical_device,
-            &device_ref.lock(),
+            &device_ref.read(),
         )?);
 
         let swapchain = Swapchain::new(
@@ -174,13 +174,13 @@ impl Context {
     pub(crate) fn render_frame(&mut self, window: &Window) -> Result<(), RenderError> {
         unsafe {
             self.device_ref
-                .lock()
+                .read()
                 .wait_for_fences(&[self.swapchain.present_fence], true, u64::MAX)
         }
         .map_err(RenderCommandError::FenceSync)?;
         unsafe {
             self.device_ref
-                .lock()
+                .read()
                 .reset_fences(&[self.swapchain.present_fence])
         }
         .map_err(RenderCommandError::FenceReset)?;
