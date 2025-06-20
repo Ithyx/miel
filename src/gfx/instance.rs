@@ -1,4 +1,7 @@
-use std::{ffi::CString, ops::Deref};
+use std::{
+    ffi::{CStr, CString, c_char},
+    ops::Deref,
+};
 
 use ash::{ext, vk};
 use thiserror::Error;
@@ -56,6 +59,14 @@ impl Instance {
         if cfg!(debug_assertions) {
             enabled_extensions.push(ext::debug_utils::NAME.as_ptr());
             enabled_layers.push(c"VK_LAYER_KHRONOS_validation".as_ptr());
+        }
+
+        log::debug!("resolved required instance extensions:");
+        {
+            for ptr in &enabled_extensions {
+                let debug_str = unsafe { CStr::from_ptr(ptr.cast::<c_char>()) };
+                log::debug!("\t{:?}", debug_str);
+            }
         }
 
         let instance_create_info = vk::InstanceCreateInfo::default()
