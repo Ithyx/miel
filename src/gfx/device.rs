@@ -80,7 +80,7 @@ impl PhysicalDevice {
             .into_iter()
             .filter(|&(device_handle, device_info)| {
                 // VK API version check
-                if device_info.api_version <= minimum_vk_version {
+                if device_info.api_version < minimum_vk_version {
                     return false;
                 }
 
