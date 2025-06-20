@@ -33,7 +33,7 @@ impl Instance {
         display_handle: RawDisplayHandle,
     ) -> Result<Self, InstanceCreateError> {
         let mut engine_version_numbers = option_env!("CARGO_PKG_VERSION")
-            .unwrap_or("1.0.0")
+            .unwrap_or("0.1.0.0")
             .split('.')
             .flat_map(|value| value.parse::<u32>())
             .chain(std::iter::repeat(0));
