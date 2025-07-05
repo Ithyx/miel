@@ -8,11 +8,10 @@ use miel::{
             RenderGraphInfo,
             render_pass::SimpleRenderPass,
             resource::{
-                ImageAttachmentDescription, ResourceAccessType, ResourceDescriptionRegistry,
-                ResourceID, ResourceRegistry,
+                FrameResourceRegistry, ImageAttachmentInfo, ResourceAccessType, ResourceID,
+                ResourceInfoRegistry,
             },
         },
-        swapchain::ImageResources,
     },
     utils::ThreadSafeRwRef,
 };
@@ -20,30 +19,30 @@ use miel::{
 struct GBufferData {
     pub albedo: ResourceID,
     pub normal: ResourceID,
+    pub sc_color: ResourceID,
+    pub sc_depth: ResourceID,
 }
 fn record_gbuffer(
     resource_ids: &mut GBufferData,
-    resources: &ResourceRegistry,
-    swapchain_res: Option<&ImageResources>,
+    resources: FrameResourceRegistry,
     _cmd_buffer: &vk::CommandBuffer,
     _device_ref: ThreadSafeRwRef<Device>,
 ) {
-    let albedo = resources.attachments.get(&resource_ids.albedo).unwrap();
-    let normal = resources.attachments.get(&resource_ids.normal).unwrap();
-
+    let albedo = resources.get_image_handle(resource_ids.albedo).unwrap();
+    let normal = resources.get_image_handle(resource_ids.normal).unwrap();
     log::info!(
         "found albedo and normal attachments: {:?}, {:?}",
-        albedo.image.handle,
-        normal.image.handle
+        albedo,
+        normal
     );
 
-    swapchain_res.inspect(|resources| {
-        log::info!(
-            "\talso got swapchain resources: {:?}, {:?}",
-            resources.color_image.handle,
-            resources.depth_image.handle
-        )
-    });
+    let sc_color = resources.get_image_handle(resource_ids.sc_color).unwrap();
+    let sc_depth = resources.get_image_handle(resource_ids.sc_depth).unwrap();
+    log::info!(
+        "found swapchain color and depth attachments: {:?} {:?}",
+        sc_color,
+        sc_depth
+    );
 }
 
 pub struct TestState {}
@@ -56,25 +55,33 @@ impl TestState {
 
 impl application::ApplicationState for TestState {
     fn on_attach(&mut self, ctx: &mut gfx::context::Context) {
-        let mut resources = ResourceDescriptionRegistry::new();
+        let mut resources = ResourceInfoRegistry::new();
         let albedo = resources
             .add_image_attachment(
-                ImageAttachmentDescription::new("albedo").format(vk::Format::R8G8B8A8_SRGB),
+                ImageAttachmentInfo::new("albedo").format(vk::Format::R8G8B8A8_SRGB),
             )
             .expect("resource should be unique");
         let normal = resources
             .add_image_attachment(
-                ImageAttachmentDescription::new("normal")
-                    .format(vk::Format::A2B10G10R10_UNORM_PACK32),
+                ImageAttachmentInfo::new("normal").format(vk::Format::A2B10G10R10_UNORM_PACK32),
             )
             .expect("resource should be unique");
 
-        let gbuffer_data = GBufferData { albedo, normal };
+        let sc_color = resources.swapchain_color_attachment();
+        let sc_depth = resources.swapchain_ds_attachment();
+
+        let gbuffer_data = GBufferData {
+            albedo,
+            normal,
+            sc_color,
+            sc_depth,
+        };
         let rendergraph_info = RenderGraphInfo::new(resources).push_render_pass(Box::new(
             SimpleRenderPass::new("g-buffer", gbuffer_data)
                 .add_color_attachment(albedo, ResourceAccessType::WriteOnly)
                 .add_color_attachment(normal, ResourceAccessType::WriteOnly)
-                .request_swapchain_resources(ResourceAccessType::WriteOnly)
+                .add_color_attachment(sc_color, ResourceAccessType::WriteOnly)
+                .set_depth_stencil_attachment(sc_depth)
                 .set_command_recorder(Box::new(record_gbuffer)),
         ));
 

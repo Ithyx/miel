@@ -6,6 +6,7 @@ use thiserror::Error;
 use crate::gfx::{
     context::Context,
     image::{Image, ImageBuildError, ImageCreateInfo},
+    swapchain::ImageResources,
 };
 
 pub type ResourceID = uuid::Uuid;
@@ -19,12 +20,12 @@ pub enum ResourceAccessType {
 
 #[derive(Debug, Copy, Clone)]
 pub enum AttachmentSize {
-    Swapchain,
+    SwapchainBased,
     Custom(vk::Extent3D),
 }
 
 #[derive(Debug)]
-pub struct ImageAttachmentDescription {
+pub struct ImageAttachmentInfo {
     pub(crate) id: ResourceID,
     pub name: String,
 
@@ -34,12 +35,12 @@ pub struct ImageAttachmentDescription {
     pub layer_count: u32,
 }
 
-impl Default for ImageAttachmentDescription {
+impl Default for ImageAttachmentInfo {
     fn default() -> Self {
         Self {
             id: ResourceID::new_v4(),
             name: "".to_owned(),
-            size: AttachmentSize::Swapchain,
+            size: AttachmentSize::SwapchainBased,
             format: vk::Format::UNDEFINED,
             usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,
             layer_count: 1,
@@ -47,7 +48,7 @@ impl Default for ImageAttachmentDescription {
     }
 }
 
-impl Clone for ImageAttachmentDescription {
+impl Clone for ImageAttachmentInfo {
     fn clone(&self) -> Self {
         Self {
             id: ResourceID::new_v4(),
@@ -60,7 +61,7 @@ impl Clone for ImageAttachmentDescription {
     }
 }
 
-impl ImageAttachmentDescription {
+impl ImageAttachmentInfo {
     pub fn new(name: &str) -> Self {
         Self::default().name(name)
     }
@@ -89,7 +90,7 @@ impl ImageAttachmentDescription {
 
 pub struct ImageAttachment {
     pub image: Image,
-    pub description: ImageAttachmentDescription,
+    pub info: ImageAttachmentInfo,
 }
 
 #[derive(Debug, Error)]
@@ -99,61 +100,80 @@ pub enum ImageAttachmentCreateError {
 }
 
 impl ImageAttachment {
-    pub fn from_description(
-        description: ImageAttachmentDescription,
+    pub fn from_info(
+        attachment_info: ImageAttachmentInfo,
         ctx: &mut Context,
     ) -> Result<Self, ImageAttachmentCreateError> {
-        let image = ImageCreateInfo::from_attachment_description(&description).build(ctx)?;
+        let image = ImageCreateInfo::from_attachment_info(&attachment_info).build(ctx)?;
 
-        Ok(Self { image, description })
+        Ok(Self {
+            image,
+            info: attachment_info,
+        })
     }
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ResourceDescriptionRegistry {
-    attachments: HashMap<ResourceID, ImageAttachmentDescription>,
+pub struct ResourceInfoRegistry {
+    infos: HashMap<ResourceID, ImageAttachmentInfo>,
+    swapchain_color_attachment: ResourceID,
+    swapchain_ds_attachment: ResourceID,
 }
 
 #[derive(Debug, Clone, Copy, Error)]
-pub enum ResourceDescriptionInsertError {
-    #[error("resource description is already present in this registry")]
+pub enum ResourceInfoInsertError {
+    #[error("resource info is already present in this registry")]
     AlreadyPresent,
 }
 
-impl ResourceDescriptionRegistry {
+impl ResourceInfoRegistry {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            infos: Default::default(),
+            swapchain_color_attachment: ResourceID::new_v4(),
+            swapchain_ds_attachment: ResourceID::new_v4(),
+        }
     }
 
     pub fn add_image_attachment(
         &mut self,
-        resource: ImageAttachmentDescription,
-    ) -> Result<ResourceID, ResourceDescriptionInsertError> {
-        let id = resource.id;
-        let previous = self.attachments.insert(id, resource);
+        info: ImageAttachmentInfo,
+    ) -> Result<ResourceID, ResourceInfoInsertError> {
+        let id = info.id;
+        let previous = self.infos.insert(id, info);
 
         match previous {
-            Some(_) => Err(ResourceDescriptionInsertError::AlreadyPresent),
+            Some(_) => Err(ResourceInfoInsertError::AlreadyPresent),
             None => Ok(id),
         }
+    }
+
+    pub fn swapchain_color_attachment(&self) -> ResourceID {
+        self.swapchain_color_attachment
+    }
+
+    pub fn swapchain_ds_attachment(&self) -> ResourceID {
+        self.swapchain_ds_attachment
     }
 
     pub(crate) fn create_resources(
         self,
         ctx: &mut Context,
-    ) -> Result<ResourceRegistry, RegistryCreateError> {
+    ) -> Result<GraphResourceRegistry, RegistryCreateError> {
         let attachments = self
-            .attachments
+            .infos
             .into_iter()
-            .map(
-                |(id, description)| match ImageAttachment::from_description(description, ctx) {
-                    Ok(attachment) => Ok((id, attachment)),
-                    Err(err) => Err(RegistryCreateError::ImageAttachmentCreation(err)),
-                },
-            )
+            .map(|(id, info)| match ImageAttachment::from_info(info, ctx) {
+                Ok(attachment) => Ok((id, attachment)),
+                Err(err) => Err(RegistryCreateError::ImageAttachmentCreation(err)),
+            })
             .collect::<Result<HashMap<_, _>, _>>()?;
 
-        Ok(ResourceRegistry { attachments })
+        Ok(GraphResourceRegistry {
+            attachments,
+            swapchain_color_attachment: self.swapchain_color_attachment,
+            swapchain_ds_attachment: self.swapchain_ds_attachment,
+        })
     }
 }
 
@@ -164,6 +184,29 @@ pub enum RegistryCreateError {
 }
 
 #[derive(Default)]
-pub struct ResourceRegistry {
+pub struct GraphResourceRegistry {
     pub attachments: HashMap<ResourceID, ImageAttachment>,
+    pub(crate) swapchain_color_attachment: ResourceID,
+    pub(crate) swapchain_ds_attachment: ResourceID,
+}
+
+pub struct FrameResourceRegistry<'a> {
+    pub(crate) graph_resources: &'a GraphResourceRegistry,
+    pub(crate) frame_resources: &'a ImageResources<'a>,
+}
+
+impl FrameResourceRegistry<'_> {
+    pub fn get_image_handle(&self, id: ResourceID) -> Option<vk::Image> {
+        if self.graph_resources.swapchain_color_attachment == id {
+            return Some(self.frame_resources.color_image.handle);
+        }
+        if self.graph_resources.swapchain_ds_attachment == id {
+            return Some(self.frame_resources.depth_image.handle);
+        }
+
+        self.graph_resources
+            .attachments
+            .get(&id)
+            .map(|attachment| attachment.image.handle)
+    }
 }

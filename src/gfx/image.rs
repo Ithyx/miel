@@ -8,7 +8,7 @@ use super::{
     allocator::{Allocation, Allocator},
     context::Context,
     device::Device,
-    render_graph::resource::ImageAttachmentDescription,
+    render_graph::resource::ImageAttachmentInfo,
 };
 
 #[derive(Default, Clone)]
@@ -64,38 +64,40 @@ impl<'a> ImageCreateInfo<'a> {
         }
     }
 
-    pub(crate) fn from_attachment_description(description: &'a ImageAttachmentDescription) -> Self {
-        let extent = match description.size {
-            super::render_graph::resource::AttachmentSize::Swapchain => vk::Extent3D::default(),
+    pub(crate) fn from_attachment_info(info: &'a ImageAttachmentInfo) -> Self {
+        let extent = match info.size {
+            super::render_graph::resource::AttachmentSize::SwapchainBased => {
+                vk::Extent3D::default()
+            }
             super::render_graph::resource::AttachmentSize::Custom(extent3_d) => extent3_d,
         };
 
         let image_info = vk::ImageCreateInfo::default()
             .extent(extent)
             .image_type(vk::ImageType::TYPE_2D)
-            .format(description.format)
+            .format(info.format)
             .mip_levels(1)
-            .array_layers(description.layer_count)
+            .array_layers(info.layer_count)
             .samples(vk::SampleCountFlags::TYPE_1)
             .tiling(vk::ImageTiling::OPTIMAL)
-            .usage(description.usage)
+            .usage(info.usage)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
         let image_view_info = vk::ImageViewCreateInfo::default()
             .view_type(vk::ImageViewType::TYPE_2D)
-            .format(description.format)
+            .format(info.format)
             .subresource_range(vk::ImageSubresourceRange {
                 aspect_mask: vk::ImageAspectFlags::COLOR,
                 base_mip_level: 0,
                 level_count: 1,
                 base_array_layer: 0,
-                layer_count: description.layer_count,
+                layer_count: info.layer_count,
             });
 
         Self {
             image_info,
             image_view_info,
-            allocation_name: &description.name,
+            allocation_name: &info.name,
         }
     }
 

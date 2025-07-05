@@ -25,6 +25,7 @@ pub struct SwapchainImage {
     pub handle: vk::Image,
     pub view: vk::ImageView,
     pub layout: vk::ImageLayout,
+    pub extent: vk::Extent2D,
 }
 
 pub struct ImageResources<'a> {
@@ -181,6 +182,7 @@ impl Swapchain {
                     handle,
                     view,
                     layout: vk::ImageLayout::UNDEFINED,
+                    extent,
                 };
 
                 let depth_attachment = depth_image_info

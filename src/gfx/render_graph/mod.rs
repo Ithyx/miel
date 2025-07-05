@@ -3,24 +3,23 @@ pub mod resource;
 
 use ash::vk;
 use render_pass::RenderPass;
-use resource::{RegistryCreateError, ResourceDescriptionRegistry, ResourceRegistry};
+use resource::{GraphResourceRegistry, RegistryCreateError, ResourceInfoRegistry};
 use thiserror::Error;
 
-use crate::utils::ThreadSafeRwRef;
+use crate::{gfx::render_graph::resource::FrameResourceRegistry, utils::ThreadSafeRwRef};
 
 use super::{context::Context, device::Device, swapchain};
 
 pub struct RenderGraphInfo {
     render_passes: Vec<Box<dyn RenderPass>>,
-
-    resource_descriptions: ResourceDescriptionRegistry,
+    resource_infos: ResourceInfoRegistry,
 }
 
 impl RenderGraphInfo {
-    pub fn new(resources: ResourceDescriptionRegistry) -> Self {
+    pub fn new(resources: ResourceInfoRegistry) -> Self {
         Self {
-            resource_descriptions: resources,
             render_passes: Default::default(),
+            resource_infos: resources,
         }
     }
 
@@ -32,8 +31,7 @@ impl RenderGraphInfo {
 
 pub(crate) struct RenderGraph {
     render_passes: Vec<Box<dyn RenderPass>>,
-
-    resources: ResourceRegistry,
+    resources: GraphResourceRegistry,
 }
 
 #[derive(Debug, Error)]
@@ -49,7 +47,7 @@ impl RenderGraph {
     pub(crate) fn empty() -> Self {
         Self {
             render_passes: vec![],
-            resources: ResourceRegistry::default(),
+            resources: GraphResourceRegistry::default(),
         }
     }
 
@@ -57,7 +55,7 @@ impl RenderGraph {
         info: RenderGraphInfo,
         ctx: &mut Context,
     ) -> Result<Self, RenderGraphCreateError> {
-        let resources = info.resource_descriptions.create_resources(ctx)?;
+        let resources = info.resource_infos.create_resources(ctx)?;
 
         Ok(Self {
             render_passes: info.render_passes,
@@ -68,22 +66,35 @@ impl RenderGraph {
     pub(crate) fn render(
         &mut self,
         swapchain_resources: swapchain::ImageResources,
-        cmd_buffer: &vk::CommandBuffer,
+        &cmd_buffer: &vk::CommandBuffer,
         device_ref: &ThreadSafeRwRef<Device>,
     ) -> Result<(), RenderGraphRunError> {
         for render_pass in &mut self.render_passes {
             let attachment_info = render_pass.attachment_infos();
-            let requested_sc_resources = attachment_info
-                .swapchain_resources
-                .map(|_| &swapchain_resources);
+            let resources = FrameResourceRegistry {
+                graph_resources: &self.resources,
+                frame_resources: &swapchain_resources,
+            };
             // todo: prepare input resources
 
-            render_pass.record_commands(
-                &self.resources,
-                requested_sc_resources,
-                cmd_buffer,
-                device_ref.clone(),
-            );
+            let rendering_info = &vk::RenderingInfo::default()
+                .render_area(vk::Rect2D::default().extent(swapchain_resources.color_image.extent))
+                .layer_count(1);
+
+            let color_attachments = vec![];
+            for (ca_id, ca_access) in &attachment_info.color_attachments {}
+
+            let rendering_info = rendering_info.color_attachments(&color_attachments);
+
+            unsafe {
+                device_ref
+                    .read()
+                    .cmd_begin_rendering(cmd_buffer, &rendering_info)
+            };
+
+            render_pass.record_commands(resources, &cmd_buffer, device_ref.clone());
+
+            unsafe { device_ref.read().cmd_end_rendering(cmd_buffer) };
         }
 
         Ok(())
