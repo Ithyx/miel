@@ -28,16 +28,16 @@ fn record_gbuffer(
     _cmd_buffer: &vk::CommandBuffer,
     _device_ref: ThreadSafeRwRef<Device>,
 ) {
-    let albedo = resources.get_image_handle(resource_ids.albedo).unwrap();
-    let normal = resources.get_image_handle(resource_ids.normal).unwrap();
+    let albedo = resources.get_image_state(resource_ids.albedo).unwrap();
+    let normal = resources.get_image_state(resource_ids.normal).unwrap();
     log::info!(
         "found albedo and normal attachments: {:?}, {:?}",
         albedo,
         normal
     );
 
-    let sc_color = resources.get_image_handle(resource_ids.sc_color).unwrap();
-    let sc_depth = resources.get_image_handle(resource_ids.sc_depth).unwrap();
+    let sc_color = resources.get_image_state(resource_ids.sc_color).unwrap();
+    let sc_depth = resources.get_image_state(resource_ids.sc_depth).unwrap();
     log::info!(
         "found swapchain color and depth attachments: {:?} {:?}",
         sc_color,

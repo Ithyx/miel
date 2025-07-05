@@ -139,33 +139,42 @@ impl<'a> ImageCreateInfo<'a> {
         let view = unsafe { device.create_image_view(&self.image_view_info, None) }
             .map_err(ImageBuildError::ImageViewCreation)?;
 
-        Ok(Image {
+        let state = ImageState {
             handle,
-            _allocation,
             view,
 
             layout: self.image_info.initial_layout,
             format: self.image_info.format,
             extent: self.image_info.extent,
+            extent_2d: vk::Extent2D {
+                width: self.image_info.extent.width,
+                height: self.image_info.extent.height,
+            },
+        };
 
-            _layer_count: self.image_info.array_layers,
+        Ok(Image {
+            state,
+            _allocation,
 
             device_ref: device_ref.clone(),
         })
     }
 }
 
-pub struct Image {
+#[derive(Debug, Clone, Copy)]
+pub struct ImageState {
     pub handle: vk::Image,
-    pub(crate) _allocation: Allocation,
     pub view: vk::ImageView,
 
     pub layout: vk::ImageLayout,
     pub format: vk::Format,
     pub extent: vk::Extent3D,
+    pub extent_2d: vk::Extent2D,
+}
 
-    // useful for cubemaps
-    _layer_count: u32,
+pub struct Image {
+    pub state: ImageState,
+    pub(crate) _allocation: Allocation,
 
     // bookkeeping
     device_ref: ThreadSafeRwRef<Device>,
@@ -175,8 +184,8 @@ impl Drop for Image {
     fn drop(&mut self) {
         let device = self.device_ref.read();
 
-        unsafe { device.destroy_image_view(self.view, None) };
-        unsafe { device.destroy_image(self.handle, None) };
+        unsafe { device.destroy_image_view(self.state.view, None) };
+        unsafe { device.destroy_image(self.state.handle, None) };
     }
 }
 

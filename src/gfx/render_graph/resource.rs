@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::gfx::{
     context::Context,
-    image::{Image, ImageBuildError, ImageCreateInfo},
+    image::{Image, ImageBuildError, ImageCreateInfo, ImageState},
     swapchain::ImageResources,
 };
 
@@ -196,17 +196,17 @@ pub struct FrameResourceRegistry<'a> {
 }
 
 impl FrameResourceRegistry<'_> {
-    pub fn get_image_handle(&self, id: ResourceID) -> Option<vk::Image> {
+    pub fn get_image_state(&self, id: ResourceID) -> Option<ImageState> {
         if self.graph_resources.swapchain_color_attachment == id {
-            return Some(self.frame_resources.color_image.handle);
+            return Some(*self.frame_resources.color_image);
         }
         if self.graph_resources.swapchain_ds_attachment == id {
-            return Some(self.frame_resources.depth_image.handle);
+            return Some(self.frame_resources.depth_image.state);
         }
 
         self.graph_resources
             .attachments
             .get(&id)
-            .map(|attachment| attachment.image.handle)
+            .map(|attachment| attachment.image.state)
     }
 }

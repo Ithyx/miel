@@ -4,7 +4,10 @@ use ash::{
 };
 use thiserror::Error;
 
-use crate::utils::{ThreadSafeRef, ThreadSafeRwRef};
+use crate::{
+    gfx::image::ImageState,
+    utils::{ThreadSafeRef, ThreadSafeRwRef},
+};
 
 use super::{
     allocator::Allocator,
@@ -21,20 +24,13 @@ pub(crate) enum NextImageState {
     OutOfDate,
 }
 
-pub struct SwapchainImage {
-    pub handle: vk::Image,
-    pub view: vk::ImageView,
-    pub layout: vk::ImageLayout,
-    pub extent: vk::Extent2D,
-}
-
 pub struct ImageResources<'a> {
-    pub color_image: &'a mut SwapchainImage,
+    pub color_image: &'a mut ImageState,
     pub depth_image: &'a mut Image,
 }
 
 pub(crate) struct ImageContext {
-    pub color_attachment: SwapchainImage,
+    pub color_attachment: ImageState,
     pub depth_attachment: Image,
 
     pub render_semaphore: vk::Semaphore,
@@ -161,12 +157,8 @@ impl Swapchain {
                     .layer_count(1),
             );
 
-        let depth_extent = vk::Extent3D {
-            width: extent.width,
-            height: extent.height,
-            depth: 1,
-        };
-        let depth_image_info = ImageCreateInfo::swapchain_depth_image(depth_extent);
+        let image_extent = extent.into();
+        let depth_image_info = ImageCreateInfo::swapchain_depth_image(image_extent);
 
         let images = images_handles
             .into_iter()
@@ -178,11 +170,13 @@ impl Swapchain {
                 let view = unsafe { device.create_image_view(&image_view_create_info, None) }
                     .map_err(SwapchainCreateError::ImageViewCreation)?;
 
-                let color_attachment = SwapchainImage {
+                let color_attachment = ImageState {
                     handle,
                     view,
                     layout: vk::ImageLayout::UNDEFINED,
-                    extent,
+                    format: surface.format.format,
+                    extent: image_extent,
+                    extent_2d: extent,
                 };
 
                 let depth_attachment = depth_image_info

@@ -41,7 +41,10 @@ pub enum RenderGraphCreateError {
 }
 
 #[derive(Debug, Error)]
-pub enum RenderGraphRunError {}
+pub enum RenderGraphRunError {
+    #[error("a resource requested by a render pass is invalid")]
+    InvalidResource,
+}
 
 impl RenderGraph {
     pub(crate) fn empty() -> Self {
@@ -78,13 +81,43 @@ impl RenderGraph {
             // todo: prepare input resources
 
             let rendering_info = &vk::RenderingInfo::default()
-                .render_area(vk::Rect2D::default().extent(swapchain_resources.color_image.extent))
+                .render_area(
+                    vk::Rect2D::default().extent(swapchain_resources.color_image.extent_2d),
+                )
                 .layer_count(1);
 
-            let color_attachments = vec![];
-            for (ca_id, ca_access) in &attachment_info.color_attachments {}
+            let mut color_attachments = vec![];
+            for &ca_id in attachment_info.color_attachments.keys() {
+                let color_attachment_state = resources
+                    .get_image_state(ca_id)
+                    .ok_or(RenderGraphRunError::InvalidResource)?;
 
+                let color_attachment = vk::RenderingAttachmentInfo::default()
+                    .image_view(color_attachment_state.view)
+                    .image_layout(color_attachment_state.layout)
+                    .load_op(vk::AttachmentLoadOp::CLEAR)
+                    .store_op(vk::AttachmentStoreOp::STORE)
+                    .clear_value(vk::ClearValue::default());
+
+                color_attachments.push(color_attachment);
+            }
             let rendering_info = rendering_info.color_attachments(&color_attachments);
+
+            // default means none
+            let mut depth_attachment = vk::RenderingAttachmentInfo::default();
+            if let Some(da_id) = attachment_info.depth_stencil_attachment {
+                let depth_attachment_state = resources
+                    .get_image_state(da_id)
+                    .ok_or(RenderGraphRunError::InvalidResource)?;
+
+                depth_attachment = depth_attachment
+                    .image_view(depth_attachment_state.view)
+                    .image_layout(depth_attachment_state.layout)
+                    .load_op(vk::AttachmentLoadOp::CLEAR)
+                    .store_op(vk::AttachmentStoreOp::STORE)
+                    .clear_value(vk::ClearValue::default());
+            }
+            let rendering_info = rendering_info.depth_attachment(&depth_attachment);
 
             unsafe {
                 device_ref
