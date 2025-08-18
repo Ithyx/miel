@@ -2,14 +2,19 @@ use std::collections::HashMap;
 
 use ash::vk;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::gfx::{
     context::Context,
-    image::{Image, ImageBuildError, ImageCreateInfo, ImageState},
-    swapchain::ImageResources,
+    image::{Image, ImageBuildError, ImageCreateInfo},
 };
 
-pub type ResourceID = uuid::Uuid;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ResourceID {
+    SwapchainColorAttachment,
+    SwapchainDSAttachment,
+    Other(Uuid),
+}
 
 #[derive(Debug, Copy, Clone)]
 pub enum ResourceAccessType {
@@ -38,7 +43,7 @@ pub struct ImageAttachmentInfo {
 impl Default for ImageAttachmentInfo {
     fn default() -> Self {
         Self {
-            id: ResourceID::new_v4(),
+            id: ResourceID::Other(Uuid::new_v4()),
             name: "".to_owned(),
             size: AttachmentSize::SwapchainBased,
             format: vk::Format::UNDEFINED,
@@ -51,7 +56,7 @@ impl Default for ImageAttachmentInfo {
 impl Clone for ImageAttachmentInfo {
     fn clone(&self) -> Self {
         Self {
-            id: ResourceID::new_v4(),
+            id: ResourceID::Other(Uuid::new_v4()),
             name: self.name.clone(),
             size: self.size,
             format: self.format,
@@ -113,11 +118,9 @@ impl ImageAttachment {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ResourceInfoRegistry {
-    infos: HashMap<ResourceID, ImageAttachmentInfo>,
-    swapchain_color_attachment: ResourceID,
-    swapchain_ds_attachment: ResourceID,
+    infos: HashMap<Uuid, ImageAttachmentInfo>,
 }
 
 #[derive(Debug, Clone, Copy, Error)]
@@ -130,8 +133,6 @@ impl ResourceInfoRegistry {
     pub fn new() -> Self {
         Self {
             infos: Default::default(),
-            swapchain_color_attachment: ResourceID::new_v4(),
-            swapchain_ds_attachment: ResourceID::new_v4(),
         }
     }
 
@@ -139,21 +140,19 @@ impl ResourceInfoRegistry {
         &mut self,
         info: ImageAttachmentInfo,
     ) -> Result<ResourceID, ResourceInfoInsertError> {
-        let id = info.id;
-        let previous = self.infos.insert(id, info);
+        let uuid = match info.id {
+            ResourceID::SwapchainColorAttachment => {
+                unreachable!("Only a local resource can be added")
+            }
+            ResourceID::SwapchainDSAttachment => unreachable!("Only a local resource can be added"),
+            ResourceID::Other(uuid) => uuid,
+        };
+        let previous = self.infos.insert(uuid, info);
 
         match previous {
             Some(_) => Err(ResourceInfoInsertError::AlreadyPresent),
-            None => Ok(id),
+            None => Ok(ResourceID::Other(uuid)),
         }
-    }
-
-    pub fn swapchain_color_attachment(&self) -> ResourceID {
-        self.swapchain_color_attachment
-    }
-
-    pub fn swapchain_ds_attachment(&self) -> ResourceID {
-        self.swapchain_ds_attachment
     }
 
     pub(crate) fn create_resources(
@@ -169,11 +168,13 @@ impl ResourceInfoRegistry {
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
 
-        Ok(GraphResourceRegistry {
-            attachments,
-            swapchain_color_attachment: self.swapchain_color_attachment,
-            swapchain_ds_attachment: self.swapchain_ds_attachment,
-        })
+        Ok(GraphResourceRegistry { attachments })
+    }
+}
+
+impl Default for ResourceInfoRegistry {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -185,28 +186,23 @@ pub enum RegistryCreateError {
 
 #[derive(Default)]
 pub struct GraphResourceRegistry {
-    pub attachments: HashMap<ResourceID, ImageAttachment>,
-    pub(crate) swapchain_color_attachment: ResourceID,
-    pub(crate) swapchain_ds_attachment: ResourceID,
+    pub attachments: HashMap<Uuid, ImageAttachment>,
 }
 
-pub struct FrameResourceRegistry<'a> {
-    pub(crate) graph_resources: &'a GraphResourceRegistry,
-    pub(crate) frame_resources: &'a ImageResources<'a>,
-}
-
-impl FrameResourceRegistry<'_> {
-    pub fn get_image_state(&self, id: ResourceID) -> Option<ImageState> {
-        if self.graph_resources.swapchain_color_attachment == id {
-            return Some(*self.frame_resources.color_image);
+impl GraphResourceRegistry {
+    pub fn get(&self, id: &ResourceID) -> Option<&ImageAttachment> {
+        match id {
+            ResourceID::SwapchainColorAttachment => todo!(),
+            ResourceID::SwapchainDSAttachment => todo!(),
+            ResourceID::Other(uuid) => self.attachments.get(uuid),
         }
-        if self.graph_resources.swapchain_ds_attachment == id {
-            return Some(self.frame_resources.depth_image.state);
-        }
+    }
 
-        self.graph_resources
-            .attachments
-            .get(&id)
-            .map(|attachment| attachment.image.state)
+    pub fn get_mut(&mut self, id: &ResourceID) -> Option<&mut ImageAttachment> {
+        match id {
+            ResourceID::SwapchainColorAttachment => todo!(),
+            ResourceID::SwapchainDSAttachment => todo!(),
+            ResourceID::Other(uuid) => self.attachments.get_mut(uuid),
+        }
     }
 }

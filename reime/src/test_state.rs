@@ -8,7 +8,7 @@ use miel::{
             RenderGraphInfo,
             render_pass::SimpleRenderPass,
             resource::{
-                FrameResourceRegistry, ImageAttachmentInfo, ResourceAccessType, ResourceID,
+                GraphResourceRegistry, ImageAttachmentInfo, ResourceAccessType, ResourceID,
                 ResourceInfoRegistry,
             },
         },
@@ -24,25 +24,25 @@ struct GBufferData {
 }
 fn record_gbuffer(
     resource_ids: &mut GBufferData,
-    resources: FrameResourceRegistry,
+    resources: &mut GraphResourceRegistry,
     _cmd_buffer: &vk::CommandBuffer,
     _device_ref: ThreadSafeRwRef<Device>,
 ) {
-    let albedo = resources.get_image_state(resource_ids.albedo).unwrap();
-    let normal = resources.get_image_state(resource_ids.normal).unwrap();
+    let albedo = resources.get(&resource_ids.albedo).unwrap();
+    let normal = resources.get(&resource_ids.normal).unwrap();
     log::info!(
         "found albedo and normal attachments: {:?}, {:?}",
-        albedo,
-        normal
+        albedo.info,
+        normal.info
     );
 
-    let sc_color = resources.get_image_state(resource_ids.sc_color).unwrap();
-    let sc_depth = resources.get_image_state(resource_ids.sc_depth).unwrap();
-    log::info!(
-        "found swapchain color and depth attachments: {:?} {:?}",
-        sc_color,
-        sc_depth
-    );
+    // let sc_color = resources.get_image_state(resource_ids.sc_color).unwrap();
+    // let sc_depth = resources.get_image_state(resource_ids.sc_depth).unwrap();
+    // log::info!(
+    //     "found swapchain color and depth attachments: {:?} {:?}",
+    //     sc_color,
+    //     sc_depth
+    // );
 }
 
 pub struct TestState {}
@@ -67,8 +67,8 @@ impl application::ApplicationState for TestState {
             )
             .expect("resource should be unique");
 
-        let sc_color = resources.swapchain_color_attachment();
-        let sc_depth = resources.swapchain_ds_attachment();
+        let sc_color = ResourceID::SwapchainColorAttachment;
+        let sc_depth = ResourceID::SwapchainDSAttachment;
 
         let gbuffer_data = GBufferData {
             albedo,

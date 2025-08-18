@@ -11,6 +11,44 @@ use super::{
     render_graph::resource::ImageAttachmentInfo,
 };
 
+#[derive(Debug, Clone)]
+pub struct ImageState {
+    pub handle: vk::Image,
+    pub view: vk::ImageView,
+
+    pub layout: vk::ImageLayout,
+    pub format: vk::Format,
+    pub extent: vk::Extent3D,
+    pub extent_2d: vk::Extent2D,
+}
+
+impl ImageState {
+    pub fn cmd_layout_transition(
+        &mut self,
+        device_ref: ThreadSafeRwRef<Device>,
+        cmd_buffer: vk::CommandBuffer,
+        image_memory_barrier: vk::ImageMemoryBarrier,
+    ) {
+        let image_memory_barrier = image_memory_barrier
+            .image(self.handle)
+            .old_layout(self.layout);
+        self.layout = image_memory_barrier.new_layout;
+
+        let device = device_ref.read();
+        unsafe {
+            device.cmd_pipeline_barrier(
+                cmd_buffer,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[image_memory_barrier],
+            )
+        };
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct ImageCreateInfo<'a> {
     pub image_info: vk::ImageCreateInfo<'a>,
@@ -161,17 +199,6 @@ impl<'a> ImageCreateInfo<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ImageState {
-    pub handle: vk::Image,
-    pub view: vk::ImageView,
-
-    pub layout: vk::ImageLayout,
-    pub format: vk::Format,
-    pub extent: vk::Extent3D,
-    pub extent_2d: vk::Extent2D,
-}
-
 pub struct Image {
     pub state: ImageState,
     pub(crate) _allocation: Allocation,
@@ -192,5 +219,14 @@ impl Drop for Image {
 impl<'a> Image {
     pub fn create_info() -> ImageCreateInfo<'a> {
         ImageCreateInfo::default()
+    }
+
+    pub fn cmd_layout_transition(
+        &mut self,
+        cmd_buffer: vk::CommandBuffer,
+        image_memory_barrier: vk::ImageMemoryBarrier,
+    ) {
+        self.state
+            .cmd_layout_transition(self.device_ref.clone(), cmd_buffer, image_memory_barrier);
     }
 }

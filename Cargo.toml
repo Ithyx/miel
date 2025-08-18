@@ -22,6 +22,6 @@ uuid = { version = "1.17.0", features = ["v4"] }
 
 ash = "0.38.0"
 ash-window = "0.13.0"
-winit = "0.30.11"
+winit = "0.30.12"
 
 gpu-allocator = "0.27.0"

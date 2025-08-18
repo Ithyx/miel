@@ -3,13 +3,11 @@ use std::collections::HashMap;
 use ash::vk;
 
 use crate::{
-    gfx::{
-        device::Device, render_graph::resource::FrameResourceRegistry, swapchain::ImageResources,
-    },
+    gfx::{device::Device, render_graph::resource::GraphResourceRegistry},
     utils::ThreadSafeRwRef,
 };
 
-use super::resource::{GraphResourceRegistry, ResourceAccessType, ResourceID};
+use super::resource::{ResourceAccessType, ResourceID};
 
 #[derive(Debug, Default, Clone)]
 pub struct AttachmentInfo {
@@ -23,14 +21,14 @@ pub trait RenderPass {
 
     fn record_commands(
         &mut self,
-        resources: FrameResourceRegistry,
+        resources: &mut GraphResourceRegistry,
         cmd_buffer: &vk::CommandBuffer,
         device_ref: ThreadSafeRwRef<Device>,
     );
 }
 
 pub type SimpleCommandRecorder<UserData> = Box<
-    dyn FnMut(&mut UserData, FrameResourceRegistry, &vk::CommandBuffer, ThreadSafeRwRef<Device>),
+    dyn FnMut(&mut UserData, &mut GraphResourceRegistry, &vk::CommandBuffer, ThreadSafeRwRef<Device>),
 >;
 
 pub struct SimpleRenderPass<UserData> {
@@ -92,7 +90,7 @@ impl<UserData> RenderPass for SimpleRenderPass<UserData> {
 
     fn record_commands(
         &mut self,
-        resources: FrameResourceRegistry,
+        resources: &mut GraphResourceRegistry,
         cmd_buffer: &vk::CommandBuffer,
         device_ref: ThreadSafeRwRef<Device>,
     ) {
