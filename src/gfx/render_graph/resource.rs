@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::gfx::{
     context::Context,
-    image::{Image, ImageBuildError, ImageCreateInfo},
+    image::{Image, ImageBuildError, ImageCreateInfo, ImageState},
+    swapchain,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -190,19 +191,52 @@ pub struct GraphResourceRegistry {
 }
 
 impl GraphResourceRegistry {
-    pub fn get(&self, id: &ResourceID) -> Option<&ImageAttachment> {
-        match id {
-            ResourceID::SwapchainColorAttachment => todo!(),
-            ResourceID::SwapchainDSAttachment => todo!(),
-            ResourceID::Other(uuid) => self.attachments.get(uuid),
+    pub fn get(&self, uuid: &Uuid) -> Option<&ImageAttachment> {
+        self.attachments.get(uuid)
+    }
+
+    pub fn get_mut(&mut self, uuid: &Uuid) -> Option<&mut ImageAttachment> {
+        self.attachments.get_mut(uuid)
+    }
+}
+
+pub struct FrameResources<'g, 'sc> {
+    graph_resources: &'g mut GraphResourceRegistry,
+    swapchain_resources: swapchain::ImageResources<'sc>,
+}
+
+impl<'g, 'sc> FrameResources<'g, 'sc> {
+    pub fn new(
+        graph_resources: &'g mut GraphResourceRegistry,
+        swapchain_resources: swapchain::ImageResources<'sc>,
+    ) -> Self {
+        Self {
+            graph_resources,
+            swapchain_resources,
         }
     }
 
-    pub fn get_mut(&mut self, id: &ResourceID) -> Option<&mut ImageAttachment> {
+    pub fn get(&self, id: &ResourceID) -> Option<&ImageState> {
         match id {
-            ResourceID::SwapchainColorAttachment => todo!(),
-            ResourceID::SwapchainDSAttachment => todo!(),
-            ResourceID::Other(uuid) => self.attachments.get_mut(uuid),
+            ResourceID::SwapchainColorAttachment => Some(self.swapchain_resources.color_image),
+            ResourceID::SwapchainDSAttachment => Some(&self.swapchain_resources.depth_image.state),
+            ResourceID::Other(uuid) => self
+                .graph_resources
+                .get(uuid)
+                .map(|attachment| &attachment.image.state),
+        }
+    }
+
+    pub fn get_mut(&mut self, id: &ResourceID) -> Option<&mut ImageState> {
+        match id {
+            ResourceID::SwapchainColorAttachment => Some(&mut self.swapchain_resources.color_image),
+            ResourceID::SwapchainDSAttachment => {
+                Some(&mut self.swapchain_resources.depth_image.state)
+            }
+            ResourceID::Other(uuid) => self
+                .graph_resources
+                .get_mut(uuid)
+                .map(|attachment| &mut attachment.image.state),
         }
     }
 }

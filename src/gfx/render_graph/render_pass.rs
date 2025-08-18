@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ash::vk;
 
 use crate::{
-    gfx::{device::Device, render_graph::resource::GraphResourceRegistry},
+    gfx::{device::Device, render_graph::resource::FrameResources},
     utils::ThreadSafeRwRef,
 };
 
@@ -21,15 +21,14 @@ pub trait RenderPass {
 
     fn record_commands(
         &mut self,
-        resources: &mut GraphResourceRegistry,
+        resources: &mut FrameResources,
         cmd_buffer: &vk::CommandBuffer,
         device_ref: ThreadSafeRwRef<Device>,
     );
 }
 
-pub type SimpleCommandRecorder<UserData> = Box<
-    dyn FnMut(&mut UserData, &mut GraphResourceRegistry, &vk::CommandBuffer, ThreadSafeRwRef<Device>),
->;
+pub type SimpleCommandRecorder<UserData> =
+    Box<dyn FnMut(&mut UserData, &mut FrameResources, &vk::CommandBuffer, ThreadSafeRwRef<Device>)>;
 
 pub struct SimpleRenderPass<UserData> {
     pub name: String,
@@ -90,7 +89,7 @@ impl<UserData> RenderPass for SimpleRenderPass<UserData> {
 
     fn record_commands(
         &mut self,
-        resources: &mut GraphResourceRegistry,
+        resources: &mut FrameResources,
         cmd_buffer: &vk::CommandBuffer,
         device_ref: ThreadSafeRwRef<Device>,
     ) {

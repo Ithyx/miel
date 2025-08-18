@@ -8,7 +8,7 @@ use miel::{
             RenderGraphInfo,
             render_pass::SimpleRenderPass,
             resource::{
-                GraphResourceRegistry, ImageAttachmentInfo, ResourceAccessType, ResourceID,
+                FrameResources, ImageAttachmentInfo, ResourceAccessType, ResourceID,
                 ResourceInfoRegistry,
             },
         },
@@ -24,7 +24,7 @@ struct GBufferData {
 }
 fn record_gbuffer(
     resource_ids: &mut GBufferData,
-    resources: &mut GraphResourceRegistry,
+    resources: &mut FrameResources,
     _cmd_buffer: &vk::CommandBuffer,
     _device_ref: ThreadSafeRwRef<Device>,
 ) {
@@ -32,17 +32,17 @@ fn record_gbuffer(
     let normal = resources.get(&resource_ids.normal).unwrap();
     log::info!(
         "found albedo and normal attachments: {:?}, {:?}",
-        albedo.info,
-        normal.info
+        albedo,
+        normal
     );
 
-    // let sc_color = resources.get_image_state(resource_ids.sc_color).unwrap();
-    // let sc_depth = resources.get_image_state(resource_ids.sc_depth).unwrap();
-    // log::info!(
-    //     "found swapchain color and depth attachments: {:?} {:?}",
-    //     sc_color,
-    //     sc_depth
-    // );
+    let sc_color = resources.get(&resource_ids.sc_color).unwrap();
+    let sc_depth = resources.get(&resource_ids.sc_depth).unwrap();
+    log::info!(
+        "found swapchain color and depth attachments: {:?} {:?}",
+        sc_color,
+        sc_depth
+    );
 }
 
 pub struct TestState {}
