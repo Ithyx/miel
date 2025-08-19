@@ -20,6 +20,7 @@ pub struct ImageState {
     pub format: vk::Format,
     pub extent: vk::Extent3D,
     pub extent_2d: vk::Extent2D,
+    pub view_subresource_range: vk::ImageSubresourceRange,
 }
 
 impl ImageState {
@@ -27,6 +28,8 @@ impl ImageState {
         &mut self,
         device_ref: ThreadSafeRwRef<Device>,
         cmd_buffer: vk::CommandBuffer,
+        src_stage_mask: vk::PipelineStageFlags,
+        dst_stage_mask: vk::PipelineStageFlags,
         image_memory_barrier: vk::ImageMemoryBarrier,
     ) {
         let image_memory_barrier = image_memory_barrier
@@ -38,8 +41,8 @@ impl ImageState {
         unsafe {
             device.cmd_pipeline_barrier(
                 cmd_buffer,
-                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                src_stage_mask,
+                dst_stage_mask,
                 vk::DependencyFlags::empty(),
                 &[],
                 &[],
@@ -188,6 +191,7 @@ impl<'a> ImageCreateInfo<'a> {
                 width: self.image_info.extent.width,
                 height: self.image_info.extent.height,
             },
+            view_subresource_range: self.image_view_info.subresource_range,
         };
 
         Ok(Image {
@@ -224,9 +228,16 @@ impl<'a> Image {
     pub fn cmd_layout_transition(
         &mut self,
         cmd_buffer: vk::CommandBuffer,
+        src_stage_mask: vk::PipelineStageFlags,
+        dst_stage_mask: vk::PipelineStageFlags,
         image_memory_barrier: vk::ImageMemoryBarrier,
     ) {
-        self.state
-            .cmd_layout_transition(self.device_ref.clone(), cmd_buffer, image_memory_barrier);
+        self.state.cmd_layout_transition(
+            self.device_ref.clone(),
+            cmd_buffer,
+            src_stage_mask,
+            dst_stage_mask,
+            image_memory_barrier,
+        );
     }
 }

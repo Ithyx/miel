@@ -88,22 +88,46 @@ impl RenderGraph {
                 let color_attachment = resources
                     .get_mut(&res_id)
                     .ok_or(RenderGraphRunError::InvalidResource)?;
-                let dst_access_mask = match access_type {
-                    ResourceAccessType::ReadOnly => vk::AccessFlags::COLOR_ATTACHMENT_READ,
-                    ResourceAccessType::WriteOnly => vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                    ResourceAccessType::ReadWrite => {
-                        vk::AccessFlags::COLOR_ATTACHMENT_READ
-                            | vk::AccessFlags::COLOR_ATTACHMENT_WRITE
-                    }
-                };
 
-                let pipeline_barrier = pipeline_barrier.dst_access_mask(dst_access_mask);
-                // TODO: THIS SHOULD FAIL BECAUSE THIS FUNCTION REQUIRES MUT BUT IS CLONED
-                color_attachment.cmd_layout_transition(
-                    device_ref.clone(),
-                    cmd_buffer,
-                    pipeline_barrier,
-                );
+                if color_attachment.layout != vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL {
+                    let dst_access_mask = match access_type {
+                        ResourceAccessType::ReadOnly => vk::AccessFlags::COLOR_ATTACHMENT_READ,
+                        ResourceAccessType::WriteOnly => vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                        ResourceAccessType::ReadWrite => {
+                            vk::AccessFlags::COLOR_ATTACHMENT_READ
+                                | vk::AccessFlags::COLOR_ATTACHMENT_WRITE
+                        }
+                    };
+                    let pipeline_barrier = pipeline_barrier
+                        .dst_access_mask(dst_access_mask)
+                        .subresource_range(color_attachment.view_subresource_range);
+                    color_attachment.cmd_layout_transition(
+                        device_ref.clone(),
+                        cmd_buffer,
+                        vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                        vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                        pipeline_barrier,
+                    );
+                }
+            }
+            if let Some(res_id) = attachment_info.depth_stencil_attachment {
+                let depth_attachment = resources
+                    .get_mut(&res_id)
+                    .ok_or(RenderGraphRunError::InvalidResource)?;
+                if depth_attachment.layout != vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL {
+                    let pipeline_barrier = vk::ImageMemoryBarrier::default()
+                        .src_access_mask(vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE)
+                        .dst_access_mask(vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ)
+                        .subresource_range(depth_attachment.view_subresource_range)
+                        .new_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+                    depth_attachment.cmd_layout_transition(
+                        device_ref.clone(),
+                        cmd_buffer,
+                        vk::PipelineStageFlags::LATE_FRAGMENT_TESTS,
+                        vk::PipelineStageFlags::FRAGMENT_SHADER,
+                        pipeline_barrier,
+                    );
+                }
             }
 
             let mut color_attachments = vec![];

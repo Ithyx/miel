@@ -177,6 +177,7 @@ impl Swapchain {
                     format: surface.format.format,
                     extent: image_extent,
                     extent_2d: extent,
+                    view_subresource_range: image_view_create_info.subresource_range,
                 };
 
                 let depth_attachment = depth_image_info
