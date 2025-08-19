@@ -16,9 +16,9 @@ include = ["/.readme", "/src", "README.md"]
 
 [dependencies]
 log = "0.4.27"
-thiserror = "2.0.12"
+thiserror = "2.0.15"
 
-uuid = { version = "1.17.0", features = ["v4"] }
+uuid = { version = "1.18.0", features = ["v4"] }
 
 ash = "0.38.0"
 ash-window = "0.13.0"
