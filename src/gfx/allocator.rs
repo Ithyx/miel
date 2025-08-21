@@ -1,4 +1,7 @@
-use std::{fmt::Debug, ops::Deref};
+use std::{
+    fmt::Debug,
+    ops::{Deref, DerefMut},
+};
 
 use thiserror::Error;
 
@@ -65,6 +68,14 @@ pub(crate) struct Allocation {
     allocator_ref: ThreadSafeRef<Allocator>,
 }
 
+impl Debug for Allocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Allocation")
+            .field("handle", &self.handle)
+            .finish()
+    }
+}
+
 impl Deref for Allocation {
     type Target = gpu_allocator::vulkan::Allocation;
 
@@ -72,6 +83,14 @@ impl Deref for Allocation {
         // There is no way to have a None in this option, unless after dropping which is
         // impossible, this unwrap is guarateed safe
         self.handle.as_ref().unwrap()
+    }
+}
+
+impl DerefMut for Allocation {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // There is no way to have a None in this option, unless after dropping which is
+        // impossible, this unwrap is guarateed safe
+        self.handle.as_mut().unwrap()
     }
 }
 
