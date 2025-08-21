@@ -8,5 +8,7 @@ pub mod commands;
 pub mod context;
 pub mod device;
 pub mod image;
+pub mod mesh;
 pub mod render_graph;
 pub mod swapchain;
+pub mod vertex;
