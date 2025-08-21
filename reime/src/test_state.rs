@@ -1,9 +1,12 @@
+use std::path::Path;
+
 use miel::{
     application,
     ash::vk,
     gfx::{
         self,
         device::Device,
+        mesh::Mesh,
         render_graph::{
             RenderGraphInfo,
             render_pass::SimpleRenderPass,
@@ -12,8 +15,9 @@ use miel::{
                 ResourceInfoRegistry,
             },
         },
+        vertex::simple::SimpleVertex,
     },
-    utils::ThreadSafeRwRef,
+    utils::{ThreadSafeRef, ThreadSafeRwRef},
 };
 
 struct GBufferData {
@@ -21,35 +25,43 @@ struct GBufferData {
     pub normal: ResourceID,
     pub sc_color: ResourceID,
     pub sc_depth: ResourceID,
+
+    pub cube: ThreadSafeRef<Mesh<SimpleVertex>>,
 }
 fn record_gbuffer(
-    resource_ids: &mut GBufferData,
+    resource_handles: &mut GBufferData,
     resources: &mut FrameResources,
     _cmd_buffer: &vk::CommandBuffer,
     _device_ref: ThreadSafeRwRef<Device>,
 ) {
-    let albedo = resources.get(&resource_ids.albedo).unwrap();
-    let normal = resources.get(&resource_ids.normal).unwrap();
+    let albedo = resources.get(&resource_handles.albedo).unwrap();
+    let normal = resources.get(&resource_handles.normal).unwrap();
     log::info!(
         "found albedo and normal attachments: {:?}, {:?}",
         albedo,
         normal
     );
 
-    let sc_color = resources.get(&resource_ids.sc_color).unwrap();
-    let sc_depth = resources.get(&resource_ids.sc_depth).unwrap();
+    let sc_color = resources.get(&resource_handles.sc_color).unwrap();
+    let sc_depth = resources.get(&resource_handles.sc_depth).unwrap();
     log::info!(
         "found swapchain color and depth attachments: {:?} {:?}",
         sc_color,
         sc_depth
     );
+
+    log::info!("cube loaded: {:?}", resource_handles.cube);
 }
 
-pub struct TestState {}
+pub struct TestState {
+    cube: ThreadSafeRef<Mesh<SimpleVertex>>,
+}
 
 impl TestState {
-    pub fn new(_ctx: &mut gfx::context::Context) -> Self {
-        Self {}
+    pub fn new(ctx: &mut gfx::context::Context) -> Self {
+        let cube = SimpleVertex::load_model_from_path_obj(Path::new("assets/meshes/cube.obj"), ctx)
+            .expect("failed to load mesh");
+        Self { cube }
     }
 }
 
@@ -75,6 +87,8 @@ impl application::ApplicationState for TestState {
             normal,
             sc_color,
             sc_depth,
+
+            cube: self.cube.clone(),
         };
         let rendergraph_info = RenderGraphInfo::new(resources).push_render_pass(Box::new(
             SimpleRenderPass::new("g-buffer", gbuffer_data)
@@ -90,9 +104,6 @@ impl application::ApplicationState for TestState {
     }
 
     fn update(&mut self, _ctx: &mut gfx::context::Context) -> miel::application::ControlFlow {
-        // log::info!("update !");
-        // log::info!("...and exit.");
-
         miel::application::ControlFlow::Continue
     }
 }
