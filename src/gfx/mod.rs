@@ -3,6 +3,7 @@ pub(crate) mod debug;
 pub(crate) mod instance;
 pub(crate) mod surface;
 
+pub mod buffer;
 pub mod commands;
 pub mod context;
 pub mod device;
