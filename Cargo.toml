@@ -20,6 +20,8 @@ thiserror = "2.0.15"
 
 uuid = { version = "1.18.0", features = ["v4"] }
 
+glam = "0.30.5"
+
 ash = "0.38.0"
 ash-window = "0.13.0"
 winit = "0.30.12"
