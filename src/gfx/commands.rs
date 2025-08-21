@@ -38,6 +38,9 @@ pub enum ImmediateCommandError {
     #[error("immediate command buffer begin failed")]
     Begin(vk::Result),
 
+    #[error("vulkan call to end command buffer failed")]
+    CommandBufferEnd(vk::Result),
+
     #[error("immediate command buffer submission failed")]
     Submission(vk::Result),
 
@@ -182,6 +185,9 @@ impl CommandManager {
 
         {
             let device = self.device_ref.read();
+            unsafe { device.end_command_buffer(self.immediate_cmd_buffer) }
+                .map_err(ImmediateCommandError::CommandBufferEnd)?;
+
             let cmd_buffers = [self.immediate_cmd_buffer];
             let submit_info = vk::SubmitInfo::default().command_buffers(&cmd_buffers);
             unsafe {
