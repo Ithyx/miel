@@ -13,6 +13,8 @@ pub struct Mesh<VertexType>
 where
     VertexType: Vertex,
 {
+    pub name: String,
+
     pub vertices: Vec<VertexType>,
     pub indices: Vec<u32>,
     pub vertex_buffer: Buffer,
@@ -35,6 +37,7 @@ pub enum UploadError {
 }
 
 pub fn upload_vertex_buffer<VertexType>(
+    name: &str,
     vertices: &[VertexType],
     ctx: &mut Context,
 ) -> Result<Buffer, UploadError>
@@ -43,7 +46,7 @@ where
 {
     let vertex_data_size: u64 = std::mem::size_of_val(vertices).try_into().unwrap();
     let vertex_staging_buffer = Buffer::builder(vertex_data_size)
-        .with_name("vertex staging")
+        .with_name(&format!("{} vertex staging", name))
         .with_usage(vk::BufferUsageFlags::TRANSFER_SRC)
         .with_memory_location(gpu_allocator::MemoryLocation::CpuToGpu)
         .build(ctx)
@@ -64,7 +67,7 @@ where
         vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
 
     let vertex_buffer = Buffer::builder(vertex_data_size)
-        .with_name("vertex data")
+        .with_name(&format!("{} vertex data", name))
         .with_usage(buffer_usage_flags)
         .with_memory_location(gpu_allocator::MemoryLocation::GpuOnly)
         .build(ctx)
@@ -88,10 +91,14 @@ where
     Ok(vertex_buffer)
 }
 
-pub fn upload_index_buffer(indices: &[u32], ctx: &mut Context) -> Result<Buffer, UploadError> {
+pub fn upload_index_buffer(
+    name: &str,
+    indices: &[u32],
+    ctx: &mut Context,
+) -> Result<Buffer, UploadError> {
     let index_data_size: u64 = std::mem::size_of_val(indices).try_into().unwrap();
     let mut index_staging_buffer = Buffer::builder(index_data_size)
-        .with_name("index staging")
+        .with_name(&format!("{} index staging", name))
         .with_usage(vk::BufferUsageFlags::TRANSFER_SRC)
         .with_memory_location(gpu_allocator::MemoryLocation::CpuToGpu)
         .build(ctx)
@@ -109,7 +116,7 @@ pub fn upload_index_buffer(indices: &[u32], ctx: &mut Context) -> Result<Buffer,
         vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::INDEX_BUFFER;
 
     let index_buffer = Buffer::builder(index_data_size)
-        .with_name("index data")
+        .with_name(&format!("{} index data", name))
         .with_usage(buffer_usage_flags)
         .with_memory_location(gpu_allocator::MemoryLocation::GpuOnly)
         .build(ctx)
@@ -148,6 +155,7 @@ pub enum MeshDataUploadError {
 }
 
 pub fn upload_mesh_data<VertexType>(
+    name: &str,
     vertices: &[VertexType],
     indices: &[u32],
     ctx: &mut Context,
@@ -155,10 +163,10 @@ pub fn upload_mesh_data<VertexType>(
 where
     VertexType: Vertex,
 {
-    let vertex_buffer =
-        upload_vertex_buffer(vertices, ctx).map_err(MeshDataUploadError::VertexBufferUpload)?;
+    let vertex_buffer = upload_vertex_buffer(name, vertices, ctx)
+        .map_err(MeshDataUploadError::VertexBufferUpload)?;
     let index_buffer =
-        upload_index_buffer(indices, ctx).map_err(MeshDataUploadError::IndexBufferUpload)?;
+        upload_index_buffer(name, indices, ctx).map_err(MeshDataUploadError::IndexBufferUpload)?;
 
     Ok(UploadData {
         vertex_buffer,

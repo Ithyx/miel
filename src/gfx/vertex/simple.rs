@@ -83,6 +83,13 @@ impl SimpleVertex {
         path: &std::path::Path,
         ctx: &mut Context,
     ) -> Result<ThreadSafeRef<Mesh<Self>>, SimpleVertexMeshLoadingError> {
+        let name = path
+            .file_stem()
+            .unwrap_or(std::ffi::OsStr::new("<unknown>"))
+            .to_str()
+            .unwrap_or("<invalid>")
+            .to_owned();
+
         let (load_result, _) = tobj::load_obj(
             path,
             &tobj::LoadOptions {
@@ -104,12 +111,12 @@ impl SimpleVertex {
         for position in positions {
             vertices.push(SimpleVertex { position });
         }
-
         let indices = mesh.indices.clone();
 
-        let upload_result = upload_mesh_data(&vertices, &indices, ctx)?;
+        let upload_result = upload_mesh_data(&name, &vertices, &indices, ctx)?;
 
         Ok(ThreadSafeRef::new(Mesh::<Self> {
+            name,
             vertices,
             indices,
             vertex_buffer: upload_result.vertex_buffer,
@@ -121,6 +128,13 @@ impl SimpleVertex {
         path: &std::path::Path,
         ctx: &mut Context,
     ) -> Result<ThreadSafeRef<Mesh<Self>>, SimpleVertexMeshLoadingError> {
+        let name = path
+            .file_stem()
+            .unwrap_or(std::ffi::OsStr::new("<unknown>"))
+            .to_str()
+            .unwrap_or("<invalid>")
+            .to_owned();
+
         let file = std::fs::File::open(path)?;
         let mut file = std::io::BufReader::new(file);
 
@@ -150,9 +164,10 @@ impl SimpleVertex {
             indices.extend(face.indices.iter());
         }
 
-        let upload_result = upload_mesh_data(&vertices, &indices, ctx)?;
+        let upload_result = upload_mesh_data(&name, &vertices, &indices, ctx)?;
 
         Ok(ThreadSafeRef::new(Mesh::<Self> {
+            name,
             vertices,
             indices,
             vertex_buffer: upload_result.vertex_buffer,

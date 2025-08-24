@@ -13,6 +13,7 @@ use crate::{
 };
 
 pub struct Buffer {
+    name: String,
     pub handle: vk::Buffer,
     size: u64,
 
@@ -81,9 +82,9 @@ impl Drop for Buffer {
 impl Debug for Buffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Buffer")
+            .field("name", &self.name)
             .field("handle", &self.handle)
             .field("size", &self.size)
-            .field("allocation", &self.allocation)
             .finish()
     }
 }
@@ -110,11 +111,11 @@ pub enum BufferBuildWithDataError {
 }
 
 pub struct BufferBuilder {
+    pub name: String,
+
     pub size: u64,
     pub usage: vk::BufferUsageFlags,
     pub memory_location: gpu_allocator::MemoryLocation,
-
-    pub name: String,
 }
 
 /// @TODO(Ithyx): create new type with MemoryLocation::GpuOnly
@@ -217,6 +218,7 @@ impl BufferBuilder {
             .map_err(BufferBuildError::AllocationBinding)?;
 
         Ok(Buffer {
+            name: self.name,
             handle,
             allocation,
             size: self.size,

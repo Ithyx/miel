@@ -54,9 +54,9 @@ impl ImageState {
 
 #[derive(Default, Clone)]
 pub struct ImageCreateInfo<'a> {
+    pub name: &'a str,
     pub image_info: vk::ImageCreateInfo<'a>,
     pub image_view_info: vk::ImageViewCreateInfo<'a>,
-    pub allocation_name: &'a str,
 }
 
 #[derive(Debug, Error)]
@@ -99,9 +99,9 @@ impl<'a> ImageCreateInfo<'a> {
             });
 
         Self {
+            name: "swapchain depth image",
             image_info,
             image_view_info,
-            allocation_name: "swapchain depth image",
         }
     }
 
@@ -136,9 +136,9 @@ impl<'a> ImageCreateInfo<'a> {
             });
 
         Self {
+            name: &info.name,
             image_info,
             image_view_info,
-            allocation_name: &info.name,
         }
     }
 
@@ -165,7 +165,7 @@ impl<'a> ImageCreateInfo<'a> {
 
         let memory_requirements = unsafe { device.get_image_memory_requirements(handle) };
         let allocation_info = gpu_allocator::vulkan::AllocationCreateDesc {
-            name: self.allocation_name,
+            name: self.name,
             requirements: memory_requirements,
             location: gpu_allocator::MemoryLocation::GpuOnly,
             linear: false,
@@ -195,6 +195,7 @@ impl<'a> ImageCreateInfo<'a> {
         };
 
         Ok(Image {
+            name: self.name.to_owned(),
             state,
             _allocation,
 
@@ -204,6 +205,7 @@ impl<'a> ImageCreateInfo<'a> {
 }
 
 pub struct Image {
+    pub name: String,
     pub state: ImageState,
     pub(crate) _allocation: Allocation,
 
