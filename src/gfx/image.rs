@@ -53,7 +53,7 @@ impl ImageState {
 }
 
 #[derive(Default, Clone)]
-pub struct ImageCreateInfo<'a> {
+pub struct ImageBuilder<'a> {
     pub name: &'a str,
     pub image_info: vk::ImageCreateInfo<'a>,
     pub image_view_info: vk::ImageViewCreateInfo<'a>,
@@ -74,7 +74,7 @@ pub enum ImageBuildError {
     ImageViewCreation(vk::Result),
 }
 
-impl<'a> ImageCreateInfo<'a> {
+impl<'a> ImageBuilder<'a> {
     pub(crate) fn swapchain_depth_image(depth_extent: vk::Extent3D) -> Self {
         let image_info = vk::ImageCreateInfo::default()
             .extent(depth_extent)
@@ -223,8 +223,8 @@ impl Drop for Image {
 }
 
 impl<'a> Image {
-    pub fn create_info() -> ImageCreateInfo<'a> {
-        ImageCreateInfo::default()
+    pub fn builder() -> ImageBuilder<'a> {
+        ImageBuilder::default()
     }
 
     pub fn cmd_layout_transition(

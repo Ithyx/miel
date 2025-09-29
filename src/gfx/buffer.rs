@@ -73,12 +73,6 @@ impl Buffer {
     }
 }
 
-impl Drop for Buffer {
-    fn drop(&mut self) {
-        unsafe { self.device_ref.read().destroy_buffer(self.handle, None) };
-    }
-}
-
 impl Debug for Buffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Buffer")
@@ -86,6 +80,12 @@ impl Debug for Buffer {
             .field("handle", &self.handle)
             .field("size", &self.size)
             .finish()
+    }
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        unsafe { self.device_ref.read().destroy_buffer(self.handle, None) };
     }
 }
 

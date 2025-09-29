@@ -12,7 +12,7 @@ use crate::{
 use super::{
     allocator::Allocator,
     device::Device,
-    image::{Image, ImageBuildError, ImageCreateInfo},
+    image::{Image, ImageBuildError, ImageBuilder},
     instance::Instance,
     surface::Surface,
 };
@@ -158,7 +158,7 @@ impl Swapchain {
             );
 
         let image_extent = extent.into();
-        let depth_image_info = ImageCreateInfo::swapchain_depth_image(image_extent);
+        let depth_image_info = ImageBuilder::swapchain_depth_image(image_extent);
 
         let images = images_handles
             .into_iter()
@@ -227,7 +227,7 @@ impl Swapchain {
         }
     }
 
-    pub fn current_image_resources(&mut self) -> ImageResources {
+    pub fn current_image_resources(&'_ mut self) -> ImageResources<'_> {
         let image = self.images.get_mut(self.current_image_index).unwrap();
         ImageResources {
             color_image: &mut image.color_attachment,

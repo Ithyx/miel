@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::gfx::{
     context::Context,
-    image::{Image, ImageBuildError, ImageCreateInfo, ImageState},
+    image::{Image, ImageBuildError, ImageBuilder, ImageState},
     swapchain,
 };
 
@@ -110,7 +110,7 @@ impl ImageAttachment {
         attachment_info: ImageAttachmentInfo,
         ctx: &mut Context,
     ) -> Result<Self, ImageAttachmentCreateError> {
-        let image = ImageCreateInfo::from_attachment_info(&attachment_info).build(ctx)?;
+        let image = ImageBuilder::from_attachment_info(&attachment_info).build(ctx)?;
 
         Ok(Self {
             image,

@@ -8,7 +8,7 @@ impl<T> ThreadSafeRef<T> {
         Self(Arc::new(Mutex::new(value)))
     }
 
-    pub fn lock(&self) -> MutexGuard<T> {
+    pub fn lock(&'_ self) -> MutexGuard<'_, T> {
         self.0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -35,13 +35,13 @@ impl<T> ThreadSafeRwRef<T> {
         Self(Arc::new(RwLock::new(value)))
     }
 
-    pub fn read(&self) -> RwLockReadGuard<T> {
+    pub fn read(&'_ self) -> RwLockReadGuard<'_, T> {
         self.0
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    pub fn write(&self) -> RwLockWriteGuard<T> {
+    pub fn write(&'_ self) -> RwLockWriteGuard<'_, T> {
         self.0
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
