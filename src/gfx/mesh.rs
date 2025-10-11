@@ -74,11 +74,11 @@ where
         .map_err(UploadError::MainBufferCreation)?;
 
     ctx.command_manager
-        .immediate_command(|cmd_buffer| {
+        .immediate_command(|cmd_buffer, device| {
             let copy_info = vk::BufferCopy::default().size(vertex_data_size);
 
             unsafe {
-                ctx.device_ref.read().cmd_copy_buffer(
+                device.cmd_copy_buffer(
                     *cmd_buffer,
                     vertex_staging_buffer.handle,
                     vertex_buffer.handle,
@@ -123,11 +123,11 @@ pub fn upload_index_buffer(
         .map_err(UploadError::MainBufferCreation)?;
 
     ctx.command_manager
-        .immediate_command(|cmd_buffer| {
+        .immediate_command(|cmd_buffer, device| {
             let copy_info = vk::BufferCopy::default().size(index_data_size);
 
             unsafe {
-                ctx.device_ref.read().cmd_copy_buffer(
+                device.cmd_copy_buffer(
                     *cmd_buffer,
                     index_staging_buffer.handle,
                     index_buffer.handle,

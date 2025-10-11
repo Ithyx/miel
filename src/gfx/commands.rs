@@ -171,47 +171,42 @@ impl CommandManager {
         f: Fn,
     ) -> Result<ReturnType, ImmediateCommandError>
     where
-        Fn: FnOnce(&vk::CommandBuffer) -> ReturnType,
+        Fn: FnOnce(&vk::CommandBuffer, &Device) -> ReturnType,
     {
-        {
-            let device = self.device_ref.read();
-            let begin_info = vk::CommandBufferBeginInfo::default()
-                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-            unsafe { device.begin_command_buffer(self.immediate_cmd_buffer, &begin_info) }
-                .map_err(ImmediateCommandError::Begin)?;
+        let device = self.device_ref.read();
+        let begin_info = vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        unsafe { device.begin_command_buffer(self.immediate_cmd_buffer, &begin_info) }
+            .map_err(ImmediateCommandError::Begin)?;
+
+        let result = f(&self.immediate_cmd_buffer, &device);
+
+        unsafe { device.end_command_buffer(self.immediate_cmd_buffer) }
+            .map_err(ImmediateCommandError::CommandBufferEnd)?;
+
+        let cmd_buffers = [self.immediate_cmd_buffer];
+        let submit_info = vk::SubmitInfo::default().command_buffers(&cmd_buffers);
+        unsafe {
+            device.queue_submit(
+                device.graphics_queue.handle,
+                &[submit_info],
+                self.immediate_fence,
+            )
         }
+        .map_err(ImmediateCommandError::Submission)?;
 
-        let result = f(&self.immediate_cmd_buffer);
+        let fences = [self.immediate_fence];
+        unsafe { device.wait_for_fences(&fences, true, u64::MAX) }
+            .map_err(ImmediateCommandError::FenceWaiting)?;
 
-        {
-            let device = self.device_ref.read();
-            unsafe { device.end_command_buffer(self.immediate_cmd_buffer) }
-                .map_err(ImmediateCommandError::CommandBufferEnd)?;
-
-            let cmd_buffers = [self.immediate_cmd_buffer];
-            let submit_info = vk::SubmitInfo::default().command_buffers(&cmd_buffers);
-            unsafe {
-                device.queue_submit(
-                    device.graphics_queue.handle,
-                    &[submit_info],
-                    self.immediate_fence,
-                )
-            }
-            .map_err(ImmediateCommandError::Submission)?;
-
-            let fences = [self.immediate_fence];
-            unsafe { device.wait_for_fences(&fences, true, u64::MAX) }
-                .map_err(ImmediateCommandError::FenceWaiting)?;
-
-            unsafe { device.reset_fences(&fences) }.map_err(ImmediateCommandError::Reset)?;
-            unsafe {
-                device.reset_command_buffer(
-                    self.immediate_cmd_buffer,
-                    vk::CommandBufferResetFlags::default(),
-                )
-            }
-            .map_err(ImmediateCommandError::Reset)?;
+        unsafe { device.reset_fences(&fences) }.map_err(ImmediateCommandError::Reset)?;
+        unsafe {
+            device.reset_command_buffer(
+                self.immediate_cmd_buffer,
+                vk::CommandBufferResetFlags::default(),
+            )
         }
+        .map_err(ImmediateCommandError::Reset)?;
 
         Ok(result)
     }
