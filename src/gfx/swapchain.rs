@@ -12,7 +12,7 @@ use crate::{
 use super::{
     allocator::Allocator,
     device::Device,
-    image::{Image, ImageBuildError, ImageBuilder},
+    image::{Image, ImageBuildError},
     instance::Instance,
     surface::Surface,
 };
@@ -157,8 +157,9 @@ impl Swapchain {
                     .layer_count(1),
             );
 
-        let image_extent = extent.into();
-        let depth_image_info = ImageBuilder::swapchain_depth_image(image_extent);
+        let image_extent: vk::Extent3D = extent.into();
+        let depth_image_info =
+            Image::builder("swapchain depth image", image_extent).swapchain_depth_image_default();
 
         let images = images_handles
             .into_iter()

@@ -6,6 +6,7 @@ use miel::{
     gfx::{
         self,
         device::Device,
+        image::Image,
         mesh::Mesh,
         render_graph::{
             RenderGraphInfo,
@@ -61,6 +62,15 @@ impl TestState {
     pub fn new(ctx: &mut gfx::context::Context) -> Self {
         let cube = SimpleVertex::load_model_from_path_obj(Path::new("assets/meshes/cube.obj"), ctx)
             .expect("failed to load mesh");
+
+        let mut _test_image = Image::builder(
+            "test image",
+            vk::Extent3D::default().width(300).height(300).depth(1),
+        )
+        .texture_default(vk::Format::B8G8R8A8_UNORM)
+        .build(ctx)
+        .unwrap();
+
         Self { cube }
     }
 }

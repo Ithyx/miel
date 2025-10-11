@@ -1,8 +1,16 @@
+use std::num::TryFromIntError;
+
 use ash::vk;
 use gpu_allocator::AllocationError;
 use thiserror::Error;
 
-use crate::utils::{ThreadSafeRef, ThreadSafeRwRef};
+use crate::{
+    gfx::{
+        buffer::{BufferBuildError, BufferBuilder, BufferDataUploadError},
+        commands::{CommandManager, ImmediateCommandError},
+    },
+    utils::{ThreadSafeRef, ThreadSafeRwRef},
+};
 
 use super::{
     allocator::{Allocation, Allocator},
@@ -52,11 +60,16 @@ impl ImageState {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct ImageBuilder<'a> {
     pub name: &'a str,
-    pub image_info: vk::ImageCreateInfo<'a>,
-    pub image_view_info: vk::ImageViewCreateInfo<'a>,
+
+    pub layout: vk::ImageLayout,
+    pub usage: vk::ImageUsageFlags,
+    pub data: Option<Vec<u8>>,
+
+    image_info: vk::ImageCreateInfo<'a>,
+    image_view_info: vk::ImageViewCreateInfo<'a>,
 }
 
 #[derive(Debug, Error)]
@@ -72,46 +85,36 @@ pub enum ImageBuildError {
 
     #[error("vulkan creation of the image view failed")]
     ImageViewCreation(vk::Result),
+
+    #[error("uploading of the initial image data failed")]
+    ImageDataUploading(#[from] ImageDataUploadError),
 }
 
 impl<'a> ImageBuilder<'a> {
-    pub(crate) fn swapchain_depth_image(depth_extent: vk::Extent3D) -> Self {
-        let image_info = vk::ImageCreateInfo::default()
-            .extent(depth_extent)
-            .image_type(vk::ImageType::TYPE_2D)
-            .format(vk::Format::D32_SFLOAT)
-            .mip_levels(1)
-            .array_layers(1)
-            .samples(vk::SampleCountFlags::TYPE_1)
-            .tiling(vk::ImageTiling::OPTIMAL)
-            .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-        let image_view_info = vk::ImageViewCreateInfo::default()
-            .view_type(vk::ImageViewType::TYPE_2D)
-            .format(vk::Format::D32_SFLOAT)
-            .subresource_range(vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::DEPTH,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            });
+    pub fn new(name: &'a str, extent: vk::Extent3D) -> Self {
+        let image_info = vk::ImageCreateInfo::default().extent(extent);
+        let image_view_info = vk::ImageViewCreateInfo::default();
 
         Self {
-            name: "swapchain depth image",
+            name,
+
+            layout: vk::ImageLayout::UNDEFINED,
+            usage: vk::ImageUsageFlags::empty(),
+            data: None,
+
             image_info,
             image_view_info,
         }
     }
 
-    pub(crate) fn from_attachment_info(info: &'a ImageAttachmentInfo) -> Self {
+    pub fn from_attachment_info(info: &'a ImageAttachmentInfo) -> Self {
         let extent = match info.size {
             super::render_graph::resource::AttachmentSize::SwapchainBased => {
                 vk::Extent3D::default()
             }
             super::render_graph::resource::AttachmentSize::Custom(extent3_d) => extent3_d,
         };
+        let usage = info.usage | vk::ImageUsageFlags::TRANSFER_DST;
 
         let image_info = vk::ImageCreateInfo::default()
             .extent(extent)
@@ -121,7 +124,7 @@ impl<'a> ImageBuilder<'a> {
             .array_layers(info.layer_count)
             .samples(vk::SampleCountFlags::TYPE_1)
             .tiling(vk::ImageTiling::OPTIMAL)
-            .usage(info.usage)
+            .usage(usage)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
         let image_view_info = vk::ImageViewCreateInfo::default()
@@ -139,15 +142,107 @@ impl<'a> ImageBuilder<'a> {
             name: &info.name,
             image_info,
             image_view_info,
+
+            layout: vk::ImageLayout::GENERAL,
+            usage,
+            data: None,
         }
     }
 
-    pub fn build(mut self, context: &Context) -> Result<Image, ImageBuildError> {
-        if self.image_info.extent == vk::Extent3D::default() {
-            self.image_info.extent = context.swapchain.extent.into();
-        }
+    pub(crate) fn swapchain_depth_image_default(mut self) -> Self {
+        self.layout = vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        self.usage |= vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT;
 
-        self.build_from_base_structs(context.device_ref.clone(), context.allocator_ref.clone())
+        self.image_info = self
+            .image_info
+            .image_type(vk::ImageType::TYPE_2D)
+            .format(vk::Format::D32_SFLOAT)
+            .mip_levels(1)
+            .array_layers(1)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        self.image_view_info = self
+            .image_view_info
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(vk::Format::D32_SFLOAT)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::DEPTH,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            });
+
+        self
+    }
+
+    pub fn texture_default(mut self, format: vk::Format) -> Self {
+        self.layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+        self.usage |= vk::ImageUsageFlags::SAMPLED;
+
+        self.image_info = self
+            .image_info
+            .image_type(vk::ImageType::TYPE_2D)
+            .format(format)
+            .mip_levels(1)
+            .array_layers(1)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        self.image_view_info = self
+            .image_view_info
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(format)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            });
+
+        self
+    }
+
+    pub fn with_layout(mut self, layout: vk::ImageLayout) -> Self {
+        self.layout = layout;
+
+        self
+    }
+
+    pub fn with_usage(mut self, usage: vk::ImageUsageFlags) -> Self {
+        self.usage = usage;
+
+        self
+    }
+
+    pub fn build(mut self, ctx: &Context) -> Result<Image, ImageBuildError> {
+        if self.image_info.extent == vk::Extent3D::default() {
+            self.image_info.extent = ctx.swapchain.extent.into();
+        }
+        let final_layout = self.layout;
+        let extent = self.image_info.extent;
+        let data = self.data.take().unwrap_or_else(|| {
+            std::iter::repeat_n(
+                u8::MAX,
+                (extent.width * extent.height * 4).try_into().unwrap(),
+            )
+            .collect()
+        });
+
+        let mut image =
+            self.build_from_base_structs(ctx.device_ref.clone(), ctx.allocator_ref.clone())?;
+        image.upload_data_internal(
+            &data,
+            Some(final_layout),
+            ctx.allocator_ref.clone(),
+            &ctx.command_manager,
+        )?;
+
+        Ok(image)
     }
 
     /// Called under the hood by [`Self::build`], which is the intended method to be called by user
@@ -159,6 +254,9 @@ impl<'a> ImageBuilder<'a> {
     ) -> Result<Image, ImageBuildError> {
         let device = device_ref.read();
         let mut allocator = allocator_ref.lock();
+
+        self.usage |= vk::ImageUsageFlags::TRANSFER_DST;
+        self.image_info.usage |= self.usage;
 
         let handle = unsafe { device.create_image(&self.image_info, None) }
             .map_err(ImageBuildError::VulkanCreation)?;
@@ -172,6 +270,7 @@ impl<'a> ImageBuilder<'a> {
             allocation_scheme: gpu_allocator::vulkan::AllocationScheme::DedicatedImage(handle),
         };
         let _allocation = allocator.allocate(&allocation_info, allocator_ref.clone())?;
+        drop(allocator);
 
         unsafe { device.bind_image_memory(handle, _allocation.memory(), _allocation.offset()) }
             .map_err(ImageBuildError::MemoryBind)?;
@@ -193,7 +292,6 @@ impl<'a> ImageBuilder<'a> {
             },
             view_subresource_range: self.image_view_info.subresource_range,
         };
-
         Ok(Image {
             name: self.name.to_owned(),
             state,
@@ -222,9 +320,21 @@ impl Drop for Image {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum ImageDataUploadError {
+    #[error("size conversion from usize to u64 failed")]
+    InvalidSize(#[from] TryFromIntError),
+    #[error("staging buffer creation failed")]
+    StagingBufferBuilding(#[from] BufferBuildError),
+    #[error("staging buffer data upload failed")]
+    StagingBufferUploading(#[from] BufferDataUploadError),
+    #[error("immediate command execution failed")]
+    ImmediateCommand(#[from] ImmediateCommandError),
+}
+
 impl<'a> Image {
-    pub fn builder() -> ImageBuilder<'a> {
-        ImageBuilder::default()
+    pub fn builder(name: &'a str, extent: vk::Extent3D) -> ImageBuilder<'a> {
+        ImageBuilder::new(name, extent)
     }
 
     pub fn cmd_layout_transition(
@@ -241,5 +351,102 @@ impl<'a> Image {
             dst_stage_mask,
             image_memory_barrier,
         );
+    }
+
+    pub fn upload_data(
+        &mut self,
+        data: &[u8],
+        new_layout: Option<vk::ImageLayout>,
+        ctx: &mut Context,
+    ) -> Result<(), ImageDataUploadError> {
+        self.upload_data_internal(
+            data,
+            new_layout,
+            ctx.allocator_ref.clone(),
+            &ctx.command_manager,
+        )
+    }
+
+    pub(crate) fn upload_data_internal(
+        &mut self,
+        data: &[u8],
+        new_layout: Option<vk::ImageLayout>,
+        allocator_ref: ThreadSafeRef<Allocator>,
+        cmd_manager: &CommandManager,
+    ) -> Result<(), ImageDataUploadError> {
+        let new_layout = new_layout.unwrap_or(self.state.layout);
+
+        let mut staging_buffer = BufferBuilder::staging_buffer_default(data.len().try_into()?)
+            .build_internal(self.device_ref.clone(), allocator_ref)?;
+        staging_buffer.upload_data(data)?;
+
+        cmd_manager.immediate_command(|&cmd_buffer, device| {
+            let range = vk::ImageSubresourceRange::default()
+                .aspect_mask(vk::ImageAspectFlags::COLOR)
+                .base_mip_level(0)
+                .level_count(1)
+                .base_array_layer(0)
+                .layer_count(1);
+
+            if self.state.layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
+                let transfer_dst_barrier = vk::ImageMemoryBarrier::default()
+                    .src_access_mask(vk::AccessFlags::NONE)
+                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .old_layout(self.state.layout)
+                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                    .image(self.state.handle)
+                    .subresource_range(range);
+                unsafe {
+                    device.cmd_pipeline_barrier(
+                        cmd_buffer,
+                        vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                        vk::PipelineStageFlags::TRANSFER,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        std::slice::from_ref(&transfer_dst_barrier),
+                    )
+                };
+            }
+
+            let copy_region = vk::BufferImageCopy::default()
+                .image_subresource(vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: 0,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                })
+                .image_extent(self.state.extent);
+            unsafe {
+                device.cmd_copy_buffer_to_image(
+                    cmd_buffer,
+                    staging_buffer.handle,
+                    self.state.handle,
+                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                    std::slice::from_ref(&copy_region),
+                )
+            };
+
+            let shader_read_barrier = vk::ImageMemoryBarrier::default()
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::NONE)
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(new_layout)
+                .image(self.state.handle)
+                .subresource_range(range);
+            unsafe {
+                device.cmd_pipeline_barrier(
+                    cmd_buffer,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::TOP_OF_PIPE,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    std::slice::from_ref(&shader_read_barrier),
+                )
+            };
+        })?;
+
+        Ok(())
     }
 }
