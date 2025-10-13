@@ -28,6 +28,9 @@ pub struct TextureBuilder<'a> {
 
 #[derive(Debug, Error)]
 pub enum TextureBuildError {
+    #[error("texture data load from path failed")]
+    ImageDataLoading(#[from] ::image::error::ImageError),
+
     #[error("building of the underlying image failed")]
     ImageBuilding(#[from] ImageBuildError),
 
@@ -93,6 +96,23 @@ impl<'a> TextureBuilder<'a> {
             DataSource::Procedural,
             dimensions[0],
             dimensions[1],
+            ctx,
+        )
+    }
+
+    pub fn build_from_path(
+        self,
+        path: &std::path::Path,
+        ctx: &Context,
+    ) -> Result<Texture, TextureBuildError> {
+        let data = ::image::open(path)?.fliph().into_rgba8();
+        let dimensions = data.dimensions();
+
+        self.build_from_data(
+            &data,
+            DataSource::Path(path.to_str().unwrap_or("<invalid path>").to_owned()),
+            dimensions.0,
+            dimensions.1,
             ctx,
         )
     }
