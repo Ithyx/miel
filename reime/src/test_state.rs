@@ -21,6 +21,7 @@ use miel::{
     utils::{ThreadSafeRef, ThreadSafeRwRef},
 };
 
+#[allow(dead_code)]
 struct GBufferData {
     pub albedo: ResourceID,
     pub normal: ResourceID,
@@ -28,6 +29,7 @@ struct GBufferData {
     pub sc_depth: ResourceID,
 
     pub cube: ThreadSafeRef<Mesh<SimpleVertex>>,
+    pub texture: ThreadSafeRef<Texture>,
 }
 fn record_gbuffer(
     _resource_handles: &mut GBufferData,
@@ -56,6 +58,7 @@ fn record_gbuffer(
 
 pub struct TestState {
     cube: ThreadSafeRef<Mesh<SimpleVertex>>,
+    texture: ThreadSafeRef<Texture>,
 }
 
 impl TestState {
@@ -63,14 +66,17 @@ impl TestState {
         let cube = SimpleVertex::load_model_from_path_obj(Path::new("assets/meshes/cube.obj"), ctx)
             .expect("failed to load mesh");
 
-        let _test_texture = Texture::builder("test texture")
+        let texture = Texture::builder("test texture")
             .build_from_path(
                 std::path::Path::new("assets/textures/rust_pbr/albedo.png"),
                 ctx,
             )
-            .unwrap();
+            .expect("failed to load texture");
 
-        Self { cube }
+        Self {
+            cube: ThreadSafeRef::new(cube),
+            texture: ThreadSafeRef::new(texture),
+        }
     }
 }
 
@@ -98,6 +104,7 @@ impl application::ApplicationState for TestState {
             sc_depth,
 
             cube: self.cube.clone(),
+            texture: self.texture.clone(),
         };
         let rendergraph_info = RenderGraphInfo::new(resources).push_render_pass(Box::new(
             SimpleRenderPass::new("g-buffer", gbuffer_data)

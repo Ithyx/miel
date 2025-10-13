@@ -61,6 +61,164 @@ impl ImageState {
     }
 }
 
+pub struct Image {
+    pub name: String,
+    pub state: ImageState,
+    pub(crate) _allocation: Allocation,
+
+    // bookkeeping
+    device_ref: ThreadSafeRwRef<Device>,
+}
+
+impl Debug for Image {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Image")
+            .field("name", &self.name)
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+impl Drop for Image {
+    fn drop(&mut self) {
+        let device = self.device_ref.read();
+
+        unsafe { device.destroy_image_view(self.state.view, None) };
+        unsafe { device.destroy_image(self.state.handle, None) };
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ImageDataUploadError {
+    #[error("size conversion from usize to u64 failed")]
+    InvalidSize(#[from] TryFromIntError),
+    #[error("staging buffer creation failed")]
+    StagingBufferBuilding(#[from] BufferBuildError),
+    #[error("staging buffer data upload failed")]
+    StagingBufferUploading(#[from] BufferDataUploadError),
+    #[error("immediate command execution failed")]
+    ImmediateCommand(#[from] ImmediateCommandError),
+}
+
+impl<'a> Image {
+    pub fn builder(name: &'a str, extent: vk::Extent3D) -> ImageBuilder<'a> {
+        ImageBuilder::new(name, extent)
+    }
+
+    pub fn cmd_layout_transition(
+        &mut self,
+        cmd_buffer: vk::CommandBuffer,
+        src_stage_mask: vk::PipelineStageFlags,
+        dst_stage_mask: vk::PipelineStageFlags,
+        image_memory_barrier: vk::ImageMemoryBarrier,
+    ) {
+        self.state.cmd_layout_transition(
+            self.device_ref.clone(),
+            cmd_buffer,
+            src_stage_mask,
+            dst_stage_mask,
+            image_memory_barrier,
+        );
+    }
+
+    pub fn upload_data(
+        &mut self,
+        data: &[u8],
+        new_layout: Option<vk::ImageLayout>,
+        ctx: &mut Context,
+    ) -> Result<(), ImageDataUploadError> {
+        self.upload_data_internal(
+            data,
+            new_layout,
+            ctx.allocator_ref.clone(),
+            &ctx.command_manager,
+        )
+    }
+
+    pub(crate) fn upload_data_internal(
+        &mut self,
+        data: &[u8],
+        new_layout: Option<vk::ImageLayout>,
+        allocator_ref: ThreadSafeRef<Allocator>,
+        cmd_manager: &CommandManager,
+    ) -> Result<(), ImageDataUploadError> {
+        let new_layout = new_layout.unwrap_or(self.state.layout);
+
+        let mut staging_buffer = BufferBuilder::staging_buffer_default(data.len().try_into()?)
+            .build_internal(self.device_ref.clone(), allocator_ref)?;
+        staging_buffer.upload_data(data)?;
+
+        cmd_manager.immediate_command(|&cmd_buffer, device| {
+            let range = vk::ImageSubresourceRange::default()
+                .aspect_mask(vk::ImageAspectFlags::COLOR)
+                .base_mip_level(0)
+                .level_count(1)
+                .base_array_layer(0)
+                .layer_count(1);
+
+            if self.state.layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
+                let transfer_dst_barrier = vk::ImageMemoryBarrier::default()
+                    .src_access_mask(vk::AccessFlags::NONE)
+                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .old_layout(self.state.layout)
+                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                    .image(self.state.handle)
+                    .subresource_range(range);
+                unsafe {
+                    device.cmd_pipeline_barrier(
+                        cmd_buffer,
+                        vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                        vk::PipelineStageFlags::TRANSFER,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        std::slice::from_ref(&transfer_dst_barrier),
+                    )
+                };
+            }
+
+            let copy_region = vk::BufferImageCopy::default()
+                .image_subresource(vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: 0,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                })
+                .image_extent(self.state.extent);
+            unsafe {
+                device.cmd_copy_buffer_to_image(
+                    cmd_buffer,
+                    staging_buffer.handle,
+                    self.state.handle,
+                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                    std::slice::from_ref(&copy_region),
+                )
+            };
+
+            let shader_read_barrier = vk::ImageMemoryBarrier::default()
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::NONE)
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(new_layout)
+                .image(self.state.handle)
+                .subresource_range(range);
+            unsafe {
+                device.cmd_pipeline_barrier(
+                    cmd_buffer,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::TOP_OF_PIPE,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    std::slice::from_ref(&shader_read_barrier),
+                )
+            };
+        })?;
+
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 pub struct ImageBuilder<'a> {
     pub name: &'a str,
@@ -307,163 +465,5 @@ impl<'a> ImageBuilder<'a> {
 
             device_ref: device_ref.clone(),
         })
-    }
-}
-
-pub struct Image {
-    pub name: String,
-    pub state: ImageState,
-    pub(crate) _allocation: Allocation,
-
-    // bookkeeping
-    device_ref: ThreadSafeRwRef<Device>,
-}
-
-impl Debug for Image {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Image")
-            .field("name", &self.name)
-            .field("state", &self.state)
-            .finish()
-    }
-}
-
-impl Drop for Image {
-    fn drop(&mut self) {
-        let device = self.device_ref.read();
-
-        unsafe { device.destroy_image_view(self.state.view, None) };
-        unsafe { device.destroy_image(self.state.handle, None) };
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum ImageDataUploadError {
-    #[error("size conversion from usize to u64 failed")]
-    InvalidSize(#[from] TryFromIntError),
-    #[error("staging buffer creation failed")]
-    StagingBufferBuilding(#[from] BufferBuildError),
-    #[error("staging buffer data upload failed")]
-    StagingBufferUploading(#[from] BufferDataUploadError),
-    #[error("immediate command execution failed")]
-    ImmediateCommand(#[from] ImmediateCommandError),
-}
-
-impl<'a> Image {
-    pub fn builder(name: &'a str, extent: vk::Extent3D) -> ImageBuilder<'a> {
-        ImageBuilder::new(name, extent)
-    }
-
-    pub fn cmd_layout_transition(
-        &mut self,
-        cmd_buffer: vk::CommandBuffer,
-        src_stage_mask: vk::PipelineStageFlags,
-        dst_stage_mask: vk::PipelineStageFlags,
-        image_memory_barrier: vk::ImageMemoryBarrier,
-    ) {
-        self.state.cmd_layout_transition(
-            self.device_ref.clone(),
-            cmd_buffer,
-            src_stage_mask,
-            dst_stage_mask,
-            image_memory_barrier,
-        );
-    }
-
-    pub fn upload_data(
-        &mut self,
-        data: &[u8],
-        new_layout: Option<vk::ImageLayout>,
-        ctx: &mut Context,
-    ) -> Result<(), ImageDataUploadError> {
-        self.upload_data_internal(
-            data,
-            new_layout,
-            ctx.allocator_ref.clone(),
-            &ctx.command_manager,
-        )
-    }
-
-    pub(crate) fn upload_data_internal(
-        &mut self,
-        data: &[u8],
-        new_layout: Option<vk::ImageLayout>,
-        allocator_ref: ThreadSafeRef<Allocator>,
-        cmd_manager: &CommandManager,
-    ) -> Result<(), ImageDataUploadError> {
-        let new_layout = new_layout.unwrap_or(self.state.layout);
-
-        let mut staging_buffer = BufferBuilder::staging_buffer_default(data.len().try_into()?)
-            .build_internal(self.device_ref.clone(), allocator_ref)?;
-        staging_buffer.upload_data(data)?;
-
-        cmd_manager.immediate_command(|&cmd_buffer, device| {
-            let range = vk::ImageSubresourceRange::default()
-                .aspect_mask(vk::ImageAspectFlags::COLOR)
-                .base_mip_level(0)
-                .level_count(1)
-                .base_array_layer(0)
-                .layer_count(1);
-
-            if self.state.layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
-                let transfer_dst_barrier = vk::ImageMemoryBarrier::default()
-                    .src_access_mask(vk::AccessFlags::NONE)
-                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                    .old_layout(self.state.layout)
-                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
-                    .image(self.state.handle)
-                    .subresource_range(range);
-                unsafe {
-                    device.cmd_pipeline_barrier(
-                        cmd_buffer,
-                        vk::PipelineStageFlags::BOTTOM_OF_PIPE,
-                        vk::PipelineStageFlags::TRANSFER,
-                        vk::DependencyFlags::empty(),
-                        &[],
-                        &[],
-                        std::slice::from_ref(&transfer_dst_barrier),
-                    )
-                };
-            }
-
-            let copy_region = vk::BufferImageCopy::default()
-                .image_subresource(vk::ImageSubresourceLayers {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    mip_level: 0,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                })
-                .image_extent(self.state.extent);
-            unsafe {
-                device.cmd_copy_buffer_to_image(
-                    cmd_buffer,
-                    staging_buffer.handle,
-                    self.state.handle,
-                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-                    std::slice::from_ref(&copy_region),
-                )
-            };
-
-            let shader_read_barrier = vk::ImageMemoryBarrier::default()
-                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                .dst_access_mask(vk::AccessFlags::NONE)
-                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
-                .new_layout(new_layout)
-                .image(self.state.handle)
-                .subresource_range(range);
-            unsafe {
-                device.cmd_pipeline_barrier(
-                    cmd_buffer,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::PipelineStageFlags::TOP_OF_PIPE,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    std::slice::from_ref(&shader_read_barrier),
-                )
-            };
-        })?;
-
-        Ok(())
     }
 }

@@ -10,7 +10,6 @@ use crate::{
         mesh::{Mesh, MeshDataUploadError, upload_mesh_data},
     },
     math::Vec3,
-    utils::ThreadSafeRef,
 };
 
 use super::{Face, Vertex, VertexInputDescription};
@@ -82,7 +81,7 @@ impl SimpleVertex {
     pub fn load_model_from_path_obj(
         path: &std::path::Path,
         ctx: &mut Context,
-    ) -> Result<ThreadSafeRef<Mesh<Self>>, SimpleVertexMeshLoadingError> {
+    ) -> Result<Mesh<Self>, SimpleVertexMeshLoadingError> {
         let name = path
             .file_stem()
             .unwrap_or(std::ffi::OsStr::new("<unknown>"))
@@ -115,19 +114,19 @@ impl SimpleVertex {
 
         let upload_result = upload_mesh_data(&name, &vertices, &indices, ctx)?;
 
-        Ok(ThreadSafeRef::new(Mesh::<Self> {
+        Ok(Mesh::<Self> {
             name,
             vertices,
             indices,
             vertex_buffer: upload_result.vertex_buffer,
             index_buffer: upload_result.index_buffer,
-        }))
+        })
     }
 
     pub fn load_model_from_path_ply(
         path: &std::path::Path,
         ctx: &mut Context,
-    ) -> Result<ThreadSafeRef<Mesh<Self>>, SimpleVertexMeshLoadingError> {
+    ) -> Result<Mesh<Self>, SimpleVertexMeshLoadingError> {
         let name = path
             .file_stem()
             .unwrap_or(std::ffi::OsStr::new("<unknown>"))
@@ -166,12 +165,12 @@ impl SimpleVertex {
 
         let upload_result = upload_mesh_data(&name, &vertices, &indices, ctx)?;
 
-        Ok(ThreadSafeRef::new(Mesh::<Self> {
+        Ok(Mesh::<Self> {
             name,
             vertices,
             indices,
             vertex_buffer: upload_result.vertex_buffer,
             index_buffer: upload_result.index_buffer,
-        }))
+        })
     }
 }
