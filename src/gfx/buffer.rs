@@ -7,6 +7,7 @@ use crate::{
     gfx::{
         allocator::{Allocation, Allocator},
         context::Context,
+        debug::debug_name_vk_object,
         device::Device,
     },
     utils::{ThreadSafeRef, ThreadSafeRwRef},
@@ -159,7 +160,14 @@ impl BufferBuilder {
     }
 
     pub fn build(self, ctx: &mut Context) -> Result<Buffer, BufferBuildError> {
-        self.build_internal(ctx.device_ref.clone(), ctx.allocator_ref.clone())
+        let buffer = self.build_internal(ctx.device_ref.clone(), ctx.allocator_ref.clone())?;
+
+        if cfg!(debug_assertions) {
+            // Not the end of the world if naming fails for whatever reason
+            let _ = debug_name_vk_object(ctx, buffer.handle, &buffer.name);
+        }
+
+        Ok(buffer)
     }
 
     pub fn build_with_pod<T: bytemuck::Pod>(

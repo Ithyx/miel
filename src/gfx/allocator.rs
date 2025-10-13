@@ -29,14 +29,10 @@ impl Allocator {
         device: &Device,
     ) -> Result<Self, AllocatorCreateError> {
         let is_debug = cfg!(debug_assertions);
-        let debug_settings = gpu_allocator::AllocatorDebugSettings {
-            log_memory_information: true,
-            log_leaks_on_shutdown: true,
-            store_stack_traces: false,
-            log_allocations: is_debug,
-            log_frees: is_debug,
-            log_stack_traces: false,
-        };
+        let mut debug_settings = gpu_allocator::AllocatorDebugSettings::default();
+        debug_settings.log_memory_information = true;
+        debug_settings.log_allocations = is_debug;
+        debug_settings.log_frees = is_debug;
         let create_info = gpu_allocator::vulkan::AllocatorCreateDesc {
             instance: instance.loader.clone(),
             device: device.loader.clone(),

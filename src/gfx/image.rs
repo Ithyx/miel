@@ -8,6 +8,7 @@ use crate::{
     gfx::{
         buffer::{BufferBuildError, BufferBuilder, BufferDataUploadError},
         commands::{CommandManager, ImmediateCommandError},
+        debug::debug_name_vk_object,
     },
     utils::{ThreadSafeRef, ThreadSafeRwRef},
 };
@@ -233,6 +234,7 @@ impl<'a> ImageBuilder<'a> {
             .collect()
         });
 
+        let name = self.name;
         let mut image =
             self.build_from_base_structs(ctx.device_ref.clone(), ctx.allocator_ref.clone())?;
         image.upload_data_internal(
@@ -242,11 +244,17 @@ impl<'a> ImageBuilder<'a> {
             &ctx.command_manager,
         )?;
 
+        if cfg!(debug_assertions) {
+            // Not the end of the world if naming fails for whatever reason
+            let _ = debug_name_vk_object(ctx, image.state.handle, name);
+            let _ = debug_name_vk_object(ctx, image.state.view, name);
+        }
+
         Ok(image)
     }
 
     /// Called under the hood by [`Self::build`], which is the intended method to be called by user
-    /// code.
+    /// code. This method ignores the data field, and leaves the image in an uninitialized state.
     pub(crate) fn build_from_base_structs(
         mut self,
         device_ref: ThreadSafeRwRef<Device>,
@@ -292,6 +300,7 @@ impl<'a> ImageBuilder<'a> {
             },
             view_subresource_range: self.image_view_info.subresource_range,
         };
+
         Ok(Image {
             name: self.name.to_owned(),
             state,

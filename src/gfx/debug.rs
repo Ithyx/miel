@@ -86,3 +86,24 @@ impl Drop for DUMessenger {
         unsafe { self.loader.destroy_debug_utils_messenger(self.handle, None) };
     }
 }
+
+/// Attempts to name a vulkan object using the `VK_EXT_debug_utils` extension.
+#[cfg(debug_assertions)]
+pub(crate) fn debug_name_vk_object<T>(
+    ctx: &crate::gfx::context::Context,
+    handle: T,
+    name: &str,
+) -> ash::prelude::VkResult<()>
+where
+    T: vk::Handle,
+{
+    let name = std::ffi::CString::new(name).unwrap_or(c"<invalid object name>".into());
+    let name_info = vk::DebugUtilsObjectNameInfoEXT::default()
+        .object_handle(handle)
+        .object_name(&name);
+
+    unsafe {
+        ash::ext::debug_utils::Device::new(&ctx.instance.loader, &ctx.device_ref.read().loader)
+            .set_debug_utils_object_name(&name_info)
+    }
+}
