@@ -6,7 +6,6 @@ use miel::{
     gfx::{
         self,
         device::Device,
-        image::Image,
         mesh::Mesh,
         render_graph::{
             RenderGraphInfo,
@@ -65,7 +64,10 @@ impl TestState {
             .expect("failed to load mesh");
 
         let _test_texture = Texture::builder("test texture")
-            .build(&[12, 12], ctx)
+            .build_from_path(
+                std::path::Path::new("assets/textures/rust_pbr/albedo.png"),
+                ctx,
+            )
             .unwrap();
 
         Self { cube }
