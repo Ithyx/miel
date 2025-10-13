@@ -1,4 +1,4 @@
-use std::num::TryFromIntError;
+use std::{fmt::Debug, num::TryFromIntError};
 
 use ash::vk;
 use gpu_allocator::AllocationError;
@@ -210,13 +210,16 @@ impl<'a> ImageBuilder<'a> {
 
     pub fn with_layout(mut self, layout: vk::ImageLayout) -> Self {
         self.layout = layout;
-
         self
     }
 
     pub fn with_usage(mut self, usage: vk::ImageUsageFlags) -> Self {
         self.usage = usage;
+        self
+    }
 
+    pub fn with_data(mut self, data: Vec<u8>) -> Self {
+        self.data = Some(data);
         self
     }
 
@@ -227,16 +230,12 @@ impl<'a> ImageBuilder<'a> {
         let final_layout = self.layout;
         let extent = self.image_info.extent;
         let data = self.data.take().unwrap_or_else(|| {
-            std::iter::repeat_n(
-                u8::MAX,
-                (extent.width * extent.height * 4).try_into().unwrap(),
-            )
-            .collect()
+            std::iter::repeat_n(0, (extent.width * extent.height * 4).try_into().unwrap()).collect()
         });
 
         let name = self.name;
         let mut image =
-            self.build_from_base_structs(ctx.device_ref.clone(), ctx.allocator_ref.clone())?;
+            self.build_uninitialized(ctx.device_ref.clone(), ctx.allocator_ref.clone())?;
         image.upload_data_internal(
             &data,
             Some(final_layout),
@@ -255,7 +254,7 @@ impl<'a> ImageBuilder<'a> {
 
     /// Called under the hood by [`Self::build`], which is the intended method to be called by user
     /// code. This method ignores the data field, and leaves the image in an uninitialized state.
-    pub(crate) fn build_from_base_structs(
+    pub(crate) fn build_uninitialized(
         mut self,
         device_ref: ThreadSafeRwRef<Device>,
         allocator_ref: ThreadSafeRef<Allocator>,
@@ -318,6 +317,15 @@ pub struct Image {
 
     // bookkeeping
     device_ref: ThreadSafeRwRef<Device>,
+}
+
+impl Debug for Image {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Image")
+            .field("name", &self.name)
+            .field("state", &self.state)
+            .finish()
+    }
 }
 
 impl Drop for Image {

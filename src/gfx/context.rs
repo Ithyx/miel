@@ -187,7 +187,7 @@ impl Context {
 
         match self.swapchain.next_image()? {
             NextImageState::OutOfDate => {
-                log::warn!("swapchain is out of date, recreating");
+                log::debug!("swapchain is out of date, recreating");
 
                 // recreate and try again next frame
                 self.swapchain = Swapchain::new(
@@ -201,7 +201,7 @@ impl Context {
                 return Ok(());
             }
             NextImageState::Suboptimal => {
-                log::debug!("acquired image is suboptimal");
+                log::trace!("acquired image is suboptimal");
             }
             _ => (),
         };

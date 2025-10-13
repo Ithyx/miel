@@ -16,6 +16,7 @@ use miel::{
                 ResourceInfoRegistry,
             },
         },
+        texture::Texture,
         vertex::simple::SimpleVertex,
     },
     utils::{ThreadSafeRef, ThreadSafeRwRef},
@@ -30,28 +31,28 @@ struct GBufferData {
     pub cube: ThreadSafeRef<Mesh<SimpleVertex>>,
 }
 fn record_gbuffer(
-    resource_handles: &mut GBufferData,
-    resources: &mut FrameResources,
+    _resource_handles: &mut GBufferData,
+    _resources: &mut FrameResources,
     _cmd_buffer: &vk::CommandBuffer,
     _device_ref: ThreadSafeRwRef<Device>,
 ) {
-    let albedo = resources.get(&resource_handles.albedo).unwrap();
-    let normal = resources.get(&resource_handles.normal).unwrap();
-    log::info!(
-        "found albedo and normal attachments: {:?}, {:?}",
-        albedo,
-        normal
-    );
+    // let albedo = resources.get(&resource_handles.albedo).unwrap();
+    // let normal = resources.get(&resource_handles.normal).unwrap();
+    // log::info!(
+    //     "found albedo and normal attachments: {:?}, {:?}",
+    //     albedo,
+    //     normal
+    // );
 
-    let sc_color = resources.get(&resource_handles.sc_color).unwrap();
-    let sc_depth = resources.get(&resource_handles.sc_depth).unwrap();
-    log::info!(
-        "found swapchain color and depth attachments: {:?} {:?}",
-        sc_color,
-        sc_depth
-    );
+    // let sc_color = resources.get(&resource_handles.sc_color).unwrap();
+    // let sc_depth = resources.get(&resource_handles.sc_depth).unwrap();
+    // log::info!(
+    //     "found swapchain color and depth attachments: {:?} {:?}",
+    //     sc_color,
+    //     sc_depth
+    // );
 
-    log::info!("cube loaded: {:?}", resource_handles.cube);
+    // log::info!("cube loaded: {:?}", resource_handles.cube);
 }
 
 pub struct TestState {
@@ -63,13 +64,9 @@ impl TestState {
         let cube = SimpleVertex::load_model_from_path_obj(Path::new("assets/meshes/cube.obj"), ctx)
             .expect("failed to load mesh");
 
-        let mut _test_image = Image::builder(
-            "test image",
-            vk::Extent3D::default().width(300).height(300).depth(1),
-        )
-        .texture_default(vk::Format::B8G8R8A8_UNORM)
-        .build(ctx)
-        .unwrap();
+        let _test_texture = Texture::builder("test texture")
+            .build(&[12, 12], ctx)
+            .unwrap();
 
         Self { cube }
     }

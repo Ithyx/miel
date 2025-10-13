@@ -183,7 +183,7 @@ impl Swapchain {
 
                 let depth_attachment = depth_image_info
                     .clone()
-                    .build_from_base_structs(device_ref.clone(), allocator_ref.clone())
+                    .build_uninitialized(device_ref.clone(), allocator_ref.clone())
                     .map_err(SwapchainCreateError::DepthImageBuilding)?;
 
                 Ok(ImageContext {

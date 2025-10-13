@@ -11,4 +11,5 @@ pub mod image;
 pub mod mesh;
 pub mod render_graph;
 pub mod swapchain;
+pub mod texture;
 pub mod vertex;
