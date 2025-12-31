@@ -190,12 +190,12 @@ impl PhysicalDevice {
             if a.properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU
                 && b.properties.device_type != vk::PhysicalDeviceType::DISCRETE_GPU
             {
-                ordering = Ordering::Greater;
+                ordering = Ordering::Less;
             }
             if a.properties.device_type != vk::PhysicalDeviceType::DISCRETE_GPU
                 && b.properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU
             {
-                ordering = Ordering::Less;
+                ordering = Ordering::Greater;
             }
 
             ordering
