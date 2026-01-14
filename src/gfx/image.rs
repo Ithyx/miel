@@ -145,6 +145,7 @@ impl<'a> Image {
         let new_layout = new_layout.unwrap_or(self.state.layout);
 
         let mut staging_buffer = BufferBuilder::staging_buffer_default(data.len().try_into()?)
+            .with_name(&format!("{} image data staging", self.name))
             .build_internal(self.device_ref.clone(), allocator_ref)?;
         staging_buffer.upload_data(data)?;
 
